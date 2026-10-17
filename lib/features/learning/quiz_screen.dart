@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/mock/mock_learning.dart';
 import '../../data/models/learning.dart';
+import '../../state/exam_provider.dart';
 import '../../state/learning_provider.dart';
 import '../../widgets/common.dart';
 import '../shell/main_shell.dart';
@@ -22,7 +23,8 @@ class QuizScreen extends StatefulWidget {
 }
 
 class _QuizScreenState extends State<QuizScreen> {
-  late final Quiz? _quiz = MockLearning.quizById(widget.quizId);
+  Quiz? _quiz;
+  bool _loading = true;
 
   int _index = 0;
   int? _selected;
@@ -33,7 +35,30 @@ class _QuizScreenState extends State<QuizScreen> {
   @override
   void initState() {
     super.initState();
-    _answers = List.filled(_quiz?.questionCount ?? 0, -1);
+    _answers = const [];
+    WidgetsBinding.instance.addPostFrameCallback((_) => _resolveQuiz());
+  }
+
+  Future<void> _resolveQuiz() async {
+    // 1) Quiz thématiques mock
+    var quiz = MockLearning.quizById(widget.quizId);
+
+    // 2) Examens admin (sqflite / prefs)
+    if (quiz == null) {
+      final exams = context.read<ExamProvider>();
+      await exams.load();
+      final exam = exams.byId(widget.quizId);
+      if (exam != null && exam.isPublished) {
+        quiz = exam.toQuiz();
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _quiz = quiz;
+      _answers = List.filled(quiz?.questionCount ?? 0, -1);
+      _loading = false;
+    });
   }
 
   QuizQuestion get _question => _quiz!.questions[_index];
@@ -91,6 +116,12 @@ class _QuizScreenState extends State<QuizScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final quiz = _quiz;
 
     if (quiz == null) {

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/responsive.dart';
-import '../../data/mock/mock_learning.dart';
 import '../../data/models/learning.dart';
 import '../../state/learning_provider.dart';
+import '../../state/load_state.dart';
 import '../../widgets/common.dart';
 import '../shell/main_shell.dart';
 import 'sign_widget.dart';
@@ -29,7 +31,10 @@ class _SignsScreenState extends State<SignsScreen>
   void initState() {
     super.initState();
     _tabs.addListener(_markStudied);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _markStudied());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<LearningProvider>().loadSigns();
+      _markStudied();
+    });
   }
 
   void _markStudied() {
@@ -48,12 +53,30 @@ class _SignsScreenState extends State<SignsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final learning = context.watch<LearningProvider>();
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: appScreenBar(
         context,
         title: 'Panneaux de signalisation',
-        subtitle: '${MockLearning.signs.length} panneaux expliqués',
+        subtitle: learning.signs.isEmpty
+            ? 'Chargement…'
+            : '${learning.signs.length} panneaux expliqués',
+        actions: [
+          IconButton(
+            tooltip: 'Gérer les panneaux',
+            onPressed: () => context.push(Routes.manageSigns),
+            icon: const Icon(Icons.edit_note_rounded),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push(Routes.signForm()),
+        backgroundColor: AppColors.accent,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Ajouter'),
       ),
       body: ContentContainer(
         child: Column(
@@ -64,17 +87,31 @@ class _SignsScreenState extends State<SignsScreen>
               tabAlignment: TabAlignment.start,
               tabs: [
                 for (final category in SignCategory.values)
-                  Tab(text: category.shortLabel),
+                  Tab(
+                    text:
+                        '${category.shortLabel} '
+                        '(${learning.signsByCategory(category).length})',
+                  ),
               ],
             ),
             Expanded(
-              child: TabBarView(
-                controller: _tabs,
-                children: [
-                  for (final category in SignCategory.values)
-                    _SignList(category: category),
-                ],
-              ),
+              child: learning.signsState == LoadState.loading &&
+                      learning.signs.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : learning.signsState == LoadState.error
+                      ? ErrorState(
+                          message: learning.signsError ??
+                              'Erreur de chargement',
+                          onRetry: () =>
+                              learning.loadSigns(force: true),
+                        )
+                      : TabBarView(
+                          controller: _tabs,
+                          children: [
+                            for (final category in SignCategory.values)
+                              _SignList(category: category),
+                          ],
+                        ),
             ),
           ],
         ),
@@ -90,14 +127,28 @@ class _SignList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final signs = MockLearning.signsByCategory(category);
+    final signs = context.watch<LearningProvider>().signsByCategory(category);
+
+    if (signs.isEmpty) {
+      return EmptyState(
+        icon: Icons.traffic_rounded,
+        title: 'Aucun panneau « ${category.shortLabel} »',
+        message:
+            'Ajoutez votre propre contenu pour cette catégorie '
+            '(Create / Update / Delete).',
+        actionLabel: 'Ajouter un panneau',
+        onAction: () => context.push(
+          Routes.signForm(category: category),
+        ),
+      );
+    }
 
     return ListView(
       padding: EdgeInsets.fromLTRB(
         Responsive.value(context, mobile: 16.0, tablet: 24.0, desktop: 28.0),
         18,
         Responsive.value(context, mobile: 16.0, tablet: 24.0, desktop: 28.0),
-        28,
+        100,
       ),
       children: [
         Container(
@@ -136,7 +187,7 @@ class _SignList extends StatelessWidget {
               crossAxisCount: Responsive.value(context, mobile: 1, tablet: 2),
               crossAxisSpacing: 14,
               mainAxisSpacing: 14,
-              mainAxisExtent: 220,
+              mainAxisExtent: 240,
             ),
             itemBuilder: (_, i) => _SignCard(sign: signs[i]),
           )
@@ -151,28 +202,63 @@ class _SignList extends StatelessWidget {
   }
 
   String get _intro => switch (category) {
-    SignCategory.danger =>
-      "Les panneaux triangulaires à bordure rouge annoncent un danger. "
-          "Ils sont implantés en amont pour vous laisser le temps de ralentir.",
-    SignCategory.interdiction =>
-      "Les panneaux ronds à bordure rouge interdisent une manœuvre ou "
-          "limitent la vitesse. Leur non-respect constitue une infraction.",
-    SignCategory.obligation =>
-      "Les panneaux ronds à fond bleu imposent un comportement : direction, "
-          "vitesse minimale ou voie réservée.",
-    SignCategory.indication =>
-      "Les panneaux carrés informent sans imposer : services, équipements et "
-          "points d'intérêt sur l'itinéraire.",
-    SignCategory.priorite =>
-      "Ces panneaux définissent l'ordre de passage aux intersections. "
-          "Ils priment sur la règle de la priorité à droite.",
-  };
+        SignCategory.danger =>
+          "Les panneaux triangulaires à bordure rouge annoncent un danger. "
+              "Ils sont implantés en amont pour vous laisser le temps de ralentir.",
+        SignCategory.interdiction =>
+          "Les panneaux ronds à bordure rouge interdisent une manœuvre ou "
+              "limitent la vitesse. Leur non-respect constitue une infraction.",
+        SignCategory.obligation =>
+          "Les panneaux ronds à fond bleu imposent un comportement : direction, "
+              "vitesse minimale ou voie réservée.",
+        SignCategory.indication =>
+          "Les panneaux carrés informent sans imposer : services, équipements et "
+              "points d'intérêt sur l'itinéraire.",
+        SignCategory.priorite =>
+          "Ces panneaux définissent l'ordre de passage aux intersections. "
+              "Ils priment sur la règle de la priorité à droite.",
+      };
 }
 
 class _SignCard extends StatelessWidget {
   const _SignCard({required this.sign});
 
   final RoadSign sign;
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer ce panneau ?'),
+        content: Text(
+          '« ${sign.name} » sera retiré définitivement.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+
+    try {
+      await context.read<LearningProvider>().deleteSign(sign.id);
+      if (!context.mounted) return;
+      AppSnack.success(context, 'Panneau supprimé.');
+    } catch (_) {
+      if (!context.mounted) return;
+      AppSnack.error(context, 'Suppression impossible.');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -209,6 +295,21 @@ class _SignCard extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Modifier',
+                onPressed: () =>
+                    context.push(Routes.signForm(id: sign.id)),
+                icon: const Icon(Icons.edit_outlined, size: 20),
+              ),
+              IconButton(
+                tooltip: 'Supprimer',
+                onPressed: () => _confirmDelete(context),
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  size: 20,
+                  color: AppColors.danger,
                 ),
               ),
             ],

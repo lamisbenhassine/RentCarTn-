@@ -7,17 +7,36 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/mock/mock_learning.dart';
+import '../../data/models/exam.dart';
 import '../../data/models/learning.dart';
+import '../../state/exam_provider.dart';
 import '../../state/learning_provider.dart';
 import '../../widgets/common.dart';
 import '../shell/main_shell.dart';
 
-class LearningDashboardScreen extends StatelessWidget {
+class LearningDashboardScreen extends StatefulWidget {
   const LearningDashboardScreen({super.key});
+
+  @override
+  State<LearningDashboardScreen> createState() =>
+      _LearningDashboardScreenState();
+}
+
+class _LearningDashboardScreenState extends State<LearningDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<LearningProvider>().loadSigns();
+      context.read<ExamProvider>().load();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final learning = context.watch<LearningProvider>();
+    final exams = context.watch<ExamProvider>();
+    final publishedExams = exams.publishedExams;
     final wide = Responsive.isWide(context);
 
     return Scaffold(
@@ -85,7 +104,86 @@ class LearningDashboardScreen extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 18),
-            _FinalTestCard(learning: learning),
+            SectionHeader(
+              title: 'Examens publiés',
+              subtitle: publishedExams.isEmpty
+                  ? 'Aucun examen publié pour le moment'
+                  : '${publishedExams.length} examen'
+                      '${publishedExams.length > 1 ? 's' : ''} disponible'
+                      '${publishedExams.length > 1 ? 's' : ''}',
+            ),
+            if (publishedExams.isEmpty)
+              AppCard(
+                child: EmptyState(
+                  compact: true,
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Pas encore d\'examen publié',
+                  message:
+                      'Créez un examen dans l\'espace admin et activez '
+                      '« Publié » pour qu\'il apparaisse ici.',
+                  actionLabel: 'Gérer les examens',
+                  onAction: () => context.push(Routes.manageExams),
+                ),
+              )
+            else
+              for (final exam in publishedExams)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _PublishedExamCard(
+                    exam: exam,
+                    learning: learning,
+                  ),
+                ),
+            const SizedBox(height: 12),
+            AppCard(
+              onTap: () => context.push(Routes.manageExams),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.admin_panel_settings_outlined,
+                      color: AppColors.accent,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Gérer les examens (admin)',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14.5,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Créer, modifier ou supprimer un examen final',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.textMuted,
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 22),
             if (learning.results.isNotEmpty) ...[
               SectionHeader(
@@ -211,7 +309,7 @@ class _LessonsGrid extends StatelessWidget {
       (
         Icons.signpost_rounded,
         'Panneaux de signalisation',
-        '${MockLearning.signs.length} panneaux illustrés',
+        '${learning.signs.isEmpty ? '…' : learning.signs.length} panneaux illustrés',
         AppColors.danger,
         Routes.signs,
       ),
@@ -372,15 +470,20 @@ class _QuizTile extends StatelessWidget {
   }
 }
 
-class _FinalTestCard extends StatelessWidget {
-  const _FinalTestCard({required this.learning});
+class _PublishedExamCard extends StatelessWidget {
+  const _PublishedExamCard({
+    required this.exam,
+    required this.learning,
+  });
 
+  final Exam exam;
   final LearningProvider learning;
 
   @override
   Widget build(BuildContext context) {
-    final test = learning.finalTest;
-    final result = learning.resultFor(test.id);
+    final quiz = exam.toQuiz();
+    final result = learning.resultFor(exam.id);
+    const color = Color(0xFF7C3AED);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -388,7 +491,7 @@ class _FinalTestCard extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [test.color, test.color.withValues(alpha: 0.75)],
+          colors: [color, color.withValues(alpha: 0.75)],
         ),
         borderRadius: BorderRadius.circular(AppTheme.radiusXl),
       ),
@@ -397,14 +500,18 @@ class _FinalTestCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(test.icon, color: Colors.white, size: 26),
+              const Icon(
+                Icons.workspace_premium_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      test.title,
+                      exam.title,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 17,
@@ -413,8 +520,9 @@ class _FinalTestCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${test.questionCount} questions · seuil de réussite '
-                      '${test.passingScore}/${test.questionCount}',
+                      '${exam.questionCount} questions · seuil '
+                      '${exam.passingPercent} % '
+                      '(${quiz.passingScore}/${exam.questionCount})',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.8),
                         fontSize: 12,
@@ -446,7 +554,7 @@ class _FinalTestCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            test.description,
+            exam.description,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.85),
               fontSize: 13,
@@ -457,23 +565,22 @@ class _FinalTestCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () => context.push(Routes.quiz(test.id)),
+              onPressed: exam.questionCount == 0
+                  ? null
+                  : () => context.push(Routes.quiz(exam.id)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
-                foregroundColor: test.color,
+                foregroundColor: color,
                 minimumSize: const Size(0, 46),
               ),
               child: Text(
-                result == null
-                    ? "Passer l'examen blanc"
-                    : "Repasser l'examen blanc",
+                result == null ? 'Passer l\'examen' : 'Repasser l\'examen',
               ),
             ),
           ),
           const SizedBox(height: 10),
           Text(
-            "Cet examen est un entraînement : il ne délivre ni permis ni "
-            "certificat officiel.",
+            "Entraînement pédagogique : aucun permis ni certificat officiel.",
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 11,

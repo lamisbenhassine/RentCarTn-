@@ -6,10 +6,12 @@ import 'package:provider/provider.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'data/local/app_database.dart';
 import 'state/auction_provider.dart';
 import 'state/auth_provider.dart';
 import 'state/car_provider.dart';
 import 'state/cart_provider.dart';
+import 'state/exam_provider.dart';
 import 'state/learning_provider.dart';
 import 'state/reservation_provider.dart';
 
@@ -17,6 +19,13 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Le français est la langue principale : les formats de date en dépendent.
   await initializeDateFormatting('fr_FR', null);
+
+  // Configuration sqflite : ouvre (ou crée) le fichier local sur mobile.
+  // Sur web, AppDatabase est un stub — aucun impact.
+  if (AppDatabase.instance.isSupported) {
+    await AppDatabase.instance.database;
+  }
+
   runApp(const RentCarApp());
 }
 
@@ -33,6 +42,7 @@ class RentCarApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ReservationProvider()),
         ChangeNotifierProvider(create: (_) => AuctionProvider()),
         ChangeNotifierProvider(create: (_) => LearningProvider()),
+        ChangeNotifierProvider(create: (_) => ExamProvider()),
       ],
       child: const _AppView(),
     );

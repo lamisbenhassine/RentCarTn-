@@ -19,9 +19,14 @@ import '../../features/cart/cart_screen.dart';
 import '../../features/catalog/car_details_screen.dart';
 import '../../features/catalog/catalog_screen.dart';
 import '../../features/home/home_screen.dart';
+import '../../data/models/learning.dart';
+import '../../features/learning/exam_form_screen.dart';
 import '../../features/learning/learning_dashboard_screen.dart';
+import '../../features/learning/manage_exams_screen.dart';
+import '../../features/learning/manage_signs_screen.dart';
 import '../../features/learning/quiz_screen.dart';
 import '../../features/learning/rules_screen.dart';
+import '../../features/learning/sign_form_screen.dart';
 import '../../features/learning/signs_screen.dart';
 import '../../features/profile/edit_profile_screen.dart';
 import '../../features/profile/profile_screen.dart';
@@ -53,6 +58,8 @@ class Routes {
   static const myAuctions = '/mes-encheres';
   static const fleet = '/gestion-flotte';
   static const signs = '/code-de-la-route/panneaux';
+  static const manageSigns = '/code-de-la-route/panneaux/gerer';
+  static const manageExams = '/code-de-la-route/examens/gerer';
   static const rules = '/code-de-la-route/regles';
 
   static String car(String id) => '/voiture/$id';
@@ -62,6 +69,20 @@ class Routes {
   static String reservation(String id) => '/mes-reservations/$id';
   static String contract(String id) => '/contrat/$id';
   static String receipt(String id) => '/recu/$id';
+
+  /// Formulaire create (`id` null) ou update.
+  static String signForm({String? id, SignCategory? category}) {
+    if (id != null) {
+      return '/code-de-la-route/panneaux/$id/modifier';
+    }
+    final q = category == null ? '' : '?categorie=${category.name}';
+    return '/code-de-la-route/panneaux/nouveau$q';
+  }
+
+  static String examForm({String? id}) {
+    if (id != null) return '/code-de-la-route/examens/$id/modifier';
+    return '/code-de-la-route/examens/nouveau';
+  }
 }
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -194,6 +215,52 @@ GoRouter buildRouter(AuthProvider auth) {
         path: Routes.signs,
         parentNavigatorKey: _rootKey,
         builder: (_, _) => const SignsScreen(),
+      ),
+      GoRoute(
+        path: Routes.manageSigns,
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const ManageSignsScreen(),
+      ),
+      GoRoute(
+        path: '/code-de-la-route/panneaux/nouveau',
+        parentNavigatorKey: _rootKey,
+        builder: (_, state) {
+          final raw = state.uri.queryParameters['categorie'];
+          SignCategory? category;
+          if (raw != null) {
+            for (final c in SignCategory.values) {
+              if (c.name == raw) {
+                category = c;
+                break;
+              }
+            }
+          }
+          return SignFormScreen(initialCategory: category);
+        },
+      ),
+      GoRoute(
+        path: '/code-de-la-route/panneaux/:id/modifier',
+        parentNavigatorKey: _rootKey,
+        builder: (_, state) => SignFormScreen(
+          signId: state.pathParameters['id'],
+        ),
+      ),
+      GoRoute(
+        path: Routes.manageExams,
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const ManageExamsScreen(),
+      ),
+      GoRoute(
+        path: '/code-de-la-route/examens/nouveau',
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const ExamFormScreen(),
+      ),
+      GoRoute(
+        path: '/code-de-la-route/examens/:id/modifier',
+        parentNavigatorKey: _rootKey,
+        builder: (_, state) => ExamFormScreen(
+          examId: state.pathParameters['id'],
+        ),
       ),
       GoRoute(
         path: Routes.rules,

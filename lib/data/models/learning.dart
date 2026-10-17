@@ -70,6 +70,54 @@ class RoadSign {
   /// Symbole textuel ou icône dessinée au centre du panneau.
   final String glyph;
   final ContentTrust trust;
+
+  RoadSign copyWith({
+    String? id,
+    String? name,
+    SignCategory? category,
+    SignShape? shape,
+    String? meaning,
+    String? advice,
+    String? glyph,
+    ContentTrust? trust,
+  }) {
+    return RoadSign(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      category: category ?? this.category,
+      shape: shape ?? this.shape,
+      meaning: meaning ?? this.meaning,
+      advice: advice ?? this.advice,
+      glyph: glyph ?? this.glyph,
+      trust: trust ?? this.trust,
+    );
+  }
+
+  Map<String, Object?> toMap() => {
+        'id': id,
+        'name': name,
+        'category': category.name,
+        'shape': shape.name,
+        'meaning': meaning,
+        'advice': advice,
+        'glyph': glyph,
+        'trust': trust.name,
+      };
+
+  factory RoadSign.fromMap(Map<String, Object?> map) {
+    return RoadSign(
+      id: map['id']! as String,
+      name: map['name']! as String,
+      category: SignCategory.values.byName(map['category']! as String),
+      shape: SignShape.values.byName(map['shape']! as String),
+      meaning: map['meaning']! as String,
+      advice: map['advice']! as String,
+      glyph: map['glyph']! as String,
+      trust: ContentTrust.values.byName(
+        (map['trust'] as String?) ?? ContentTrust.aVerifier.name,
+      ),
+    );
+  }
 }
 
 class RuleSection {
@@ -119,6 +167,7 @@ class Quiz {
     required this.color,
     required this.questions,
     this.isFinalTest = false,
+    this.passingPercent = 70,
   });
 
   final String id;
@@ -129,10 +178,14 @@ class Quiz {
   final List<QuizQuestion> questions;
   final bool isFinalTest;
 
+  /// Seuil de réussite en pourcentage (ex. 70).
+  final int passingPercent;
+
   int get questionCount => questions.length;
 
-  /// Seuil de réussite affiché à l'utilisateur.
-  int get passingScore => (questionCount * 0.7).ceil();
+  /// Nombre minimum de bonnes réponses pour réussir.
+  int get passingScore =>
+      (questionCount * (passingPercent.clamp(1, 100) / 100)).ceil();
 }
 
 /// Résultat conservé localement pour le suivi de progression.
