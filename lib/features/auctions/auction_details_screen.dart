@@ -53,7 +53,7 @@ class _AuctionDetailsScreenState extends State<AuctionDetailsScreen> {
     _bidCtrl.text = auction.minimumNextBid.toStringAsFixed(0);
   }
 
-  void _placeBid(Auction auction) {
+  Future<void> _placeBid(Auction auction) async {
     FocusScope.of(context).unfocus();
     final raw = _bidCtrl.text.replaceAll(RegExp(r'[^\d.]'), '');
     final amount = double.tryParse(raw);
@@ -63,10 +63,11 @@ class _AuctionDetailsScreenState extends State<AuctionDetailsScreen> {
       return;
     }
 
-    final result = context.read<AuctionProvider>().placeBid(
+    final result = await context.read<AuctionProvider>().placeBid(
       auction.id,
       amount,
     );
+    if (!mounted) return;
     if (result.ok) {
       AppSnack.success(context, result.message);
       _prefillBid();
@@ -75,10 +76,23 @@ class _AuctionDetailsScreenState extends State<AuctionDetailsScreen> {
     }
   }
 
-  void _simulateBid(Auction auction) {
-    final result = context.read<AuctionProvider>().simulateCompetingBid(
+  Future<void> _raise500(Auction auction) async {
+    final result =
+        await context.read<AuctionProvider>().raiseByIncrement(auction.id);
+    if (!mounted) return;
+    if (result.ok) {
+      AppSnack.success(context, result.message);
+      _prefillBid();
+    } else {
+      AppSnack.error(context, result.message);
+    }
+  }
+
+  Future<void> _simulateBid(Auction auction) async {
+    final result = await context.read<AuctionProvider>().simulateCompetingBid(
       auction.id,
     );
+    if (!mounted) return;
     result.ok
         ? AppSnack.info(context, result.message)
         : AppSnack.error(context, result.message);
@@ -127,6 +141,7 @@ class _AuctionDetailsScreenState extends State<AuctionDetailsScreen> {
             auction: auction,
             controller: _bidCtrl,
             onBid: () => _placeBid(auction),
+            onRaise500: () => _raise500(auction),
           )
         else
           _ClosedBlock(auction: auction),
@@ -134,16 +149,18 @@ class _AuctionDetailsScreenState extends State<AuctionDetailsScreen> {
         _SimulationPanel(
           auction: auction,
           onSimulateBid: () => _simulateBid(auction),
-          onEndSoon: () {
-            provider.simulateEndingSoon(auction.id);
+          onEndSoon: () async {
+            await provider.simulateEndingSoon(auction.id);
+            if (!context.mounted) return;
             AppSnack.info(
               context,
-              'Compte à rebours ramené à 45 secondes (simulation).',
+              'Compte à rebours ramené à 45 secondes (test).',
             );
           },
-          onClose: () {
-            provider.simulateClose(auction.id);
-            AppSnack.info(context, 'Vente clôturée (simulation).');
+          onClose: () async {
+            await provider.simulateClose(auction.id);
+            if (!context.mounted) return;
+            AppSnack.info(context, 'Vente clôturée (test).');
           },
         ),
         const SizedBox(height: 22),
@@ -390,16 +407,37 @@ class _HeaderBlock extends StatelessWidget {
               label: Formatters.mileage(auction.mileage),
             ),
             SpecChip(
-              icon: Icons.local_gas_station_rounded,
-              label: auction.fuel.label,
+              icon: Icons.cake_outlined,
+              label: '${auction.ageYears} an${auction.ageYears > 1 ? 's' : ''}',
             ),
             SpecChip(
-              icon: Icons.settings_rounded,
-              label: auction.transmission.label,
+              icon: auction.hadAccident
+                  ? Icons.car_crash_rounded
+                  : Icons.verified_outlined,
+              label: auction.hadAccident ? 'Accidentée' : 'Sans accident',
+            ),
+            SpecChip(
+              icon: Icons.health_and_safety_outlined,
+              label: auction.condition.shortLabel,
             ),
             SpecChip(icon: Icons.place_rounded, label: auction.city),
+            SpecChip(
+              icon: Icons.event_seat_rounded,
+              label: '${auction.seats} places',
+            ),
           ],
         ),
+        if (auction.extraInfo.trim().isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            auction.extraInfo.trim(),
+            style: const TextStyle(
+              fontSize: 13.5,
+              height: 1.5,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -611,11 +649,13 @@ class _BidBlock extends StatelessWidget {
     required this.auction,
     required this.controller,
     required this.onBid,
+    required this.onRaise500,
   });
 
   final Auction auction;
   final TextEditingController controller;
   final VoidCallback onBid;
+  final VoidCallback onRaise500;
 
   @override
   Widget build(BuildContext context) {
@@ -647,14 +687,38 @@ class _BidBlock extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Offre minimale acceptée : '
-            '${Formatters.moneyShort(auction.minimumNextBid)}',
+            'Prix actuel : ${Formatters.moneyShort(auction.currentPrice)} · '
+            'minimum : ${Formatters.moneyShort(auction.minimumNextBid)}',
             style: const TextStyle(
               fontSize: 12.5,
               color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: onRaise500,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+              ),
+              icon: const Icon(Icons.trending_up_rounded, size: 20),
+              label: Text(
+                'Surenchérir + ${Formatters.moneyShort(auction.minIncrement)}',
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Ou saisir un montant précis',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -666,7 +730,7 @@ class _BidBlock extends StatelessWidget {
                     LengthLimitingTextInputFormatter(9),
                   ],
                   decoration: const InputDecoration(
-                    labelText: 'Votre offre',
+                    labelText: 'Montant personnalisé',
                     suffixText: 'TND',
                     prefixIcon: Icon(Icons.payments_outlined),
                   ),
@@ -681,25 +745,6 @@ class _BidBlock extends StatelessWidget {
                   label: const Text('Enchérir'),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final step in [1, 2, 5])
-                ActionChip(
-                  label: Text(
-                    '+ ${Formatters.moneyShort(auction.minIncrement * step)}',
-                  ),
-                  onPressed: () {
-                    controller.text =
-                        (auction.minimumNextBid +
-                                auction.minIncrement * (step - 1))
-                            .toStringAsFixed(0);
-                  },
-                ),
             ],
           ),
         ],

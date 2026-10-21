@@ -42,7 +42,10 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (ok) {
-      context.read<AuctionProvider>().setUsername(auth.publicUsername);
+      context.read<AuctionProvider>().setUsername(
+        auth.publicUsername,
+        userId: auth.user?.id,
+      );
       AppSnack.success(context, 'Bienvenue ${auth.user!.firstName} !');
       context.go(Routes.home);
     } else {

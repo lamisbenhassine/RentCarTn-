@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/exam.dart';
+import '../../data/services/gemini_service.dart';
 import '../../state/exam_provider.dart';
+import '../../state/learning_provider.dart';
 import '../../widgets/common.dart';
 import '../shell/main_shell.dart';
 
@@ -23,6 +25,7 @@ class ExamFormScreen extends StatefulWidget {
 
 class _ExamFormScreenState extends State<ExamFormScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _gemini = GeminiService();
   late final TextEditingController _title;
   late final TextEditingController _description;
   late final TextEditingController _passing;
@@ -30,6 +33,7 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
   bool _isFinal = true;
   bool _isPublished = true;
   bool _saving = false;
+  bool _generating = false;
   bool _ready = false;
   List<_QuestionDraft> _questions = [];
 
@@ -44,7 +48,11 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
 
   Future<void> _hydrate() async {
     final provider = context.read<ExamProvider>();
-    await provider.load();
+    final learning = context.read<LearningProvider>();
+    await Future.wait([
+      provider.load(),
+      learning.loadSigns(),
+    ]);
 
     if (widget.examId != null) {
       final existing = provider.byId(widget.examId!);
@@ -65,6 +73,7 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
 
   @override
   void dispose() {
+    _gemini.dispose();
     _title.dispose();
     _description.dispose();
     _passing.dispose();
@@ -84,6 +93,82 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
     setState(() {
       _questions.removeAt(index).dispose();
     });
+  }
+
+  Future<void> _generateWithAi() async {
+    if (_generating || _saving) return;
+
+    if (_questions.isNotEmpty) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Remplacer les questions ?'),
+          content: const Text(
+            'La génération IA va remplacer les questions actuelles '
+            'par de nouvelles questions basées sur les panneaux et règles.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Générer'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+
+    setState(() => _generating = true);
+
+    try {
+      final learning = context.read<LearningProvider>();
+      await learning.loadSigns();
+      final signs = learning.signs;
+
+      final result = await _gemini.generateExam(
+        signs: signs,
+        rules: learning.rules,
+        questionCount: 8,
+      );
+
+      if (!mounted) return;
+
+      if (!result.ok) {
+        AppSnack.error(
+          context,
+          result.message ?? 'Génération impossible.',
+        );
+        return;
+      }
+
+      for (final q in _questions) {
+        q.dispose();
+      }
+
+      setState(() {
+        if (_title.text.trim().isEmpty && result.title != null) {
+          _title.text = result.title!;
+        }
+        if (_description.text.trim().isEmpty && result.description != null) {
+          _description.text = result.description!;
+        }
+        _questions = [
+          for (final q in result.questions) _QuestionDraft.fromModel(q),
+        ];
+      });
+
+      AppSnack.success(
+        context,
+        '${result.questions.length} questions générées par Gemini. '
+        'Vérifie-les avant d\'enregistrer.',
+      );
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
   }
 
   Future<void> _save() async {
@@ -227,6 +312,79 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
               40,
             ),
             children: [
+              // Bouton IA en premier — bien visible sans scroller.
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppColors.accent.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.auto_awesome_rounded,
+                          color: AppColors.accent,
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Génération IA (Google Gemini)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Crée automatiquement des QCM à partir des panneaux '
+                      'et des règles. Tu pourras ensuite modifier chaque '
+                      'question à la main.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.4,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    ElevatedButton.icon(
+                      onPressed:
+                          (_generating || _saving) ? null : _generateWithAi,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      icon: _generating
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.auto_awesome_rounded),
+                      label: Text(
+                        _generating
+                            ? 'Génération en cours…'
+                            : 'Générer avec l\'IA (Gemini)',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
               TextFormField(
                 controller: _title,
                 textCapitalization: TextCapitalization.sentences,
@@ -279,7 +437,7 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Publié'),
                 subtitle: const Text(
-                  'Visible pour les utilisateurs (partie user plus tard)',
+                  'Visible pour les utilisateurs une fois enregistré',
                 ),
                 value: _isPublished,
                 onChanged: (v) => setState(() => _isPublished = v),
@@ -297,7 +455,7 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
                     ),
                   ),
                   TextButton.icon(
-                    onPressed: _addQuestion,
+                    onPressed: (_generating || _saving) ? null : _addQuestion,
                     icon: const Icon(Icons.add_rounded),
                     label: const Text('Ajouter une question'),
                   ),
@@ -308,8 +466,8 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
                 const NoticeBox(
                   icon: Icons.quiz_outlined,
                   message:
-                      'Aucune question. Ajoutez des QCM avec 2 à 4 options '
-                      'et une bonne réponse.',
+                      'Aucune question. Utilise « Générer avec l\'IA » '
+                      'ou ajoute des QCM manuellement.',
                 )
               else
                 for (var i = 0; i < _questions.length; i++)

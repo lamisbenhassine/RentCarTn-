@@ -5,8 +5,8 @@
 abstract final class DatabaseConstants {
   static const String fileName = 'rentcar_tunisia.db';
 
-  /// Version 3 : tables examens + questions (CRUD admin examen final).
-  static const int version = 3;
+  /// Version 4 : purge des seeds démo (cars / panneaux / examens).
+  static const int version = 4;
 
   static const String users = 'users';
   static const String cars = 'cars';

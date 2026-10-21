@@ -542,43 +542,12 @@ class _TitleBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            StatusBadge.availability(car.available),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.navy.withValues(alpha: 0.07),
-                borderRadius: BorderRadius.circular(100),
-              ),
-              child: Text(
-                car.category.label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.navy,
-                ),
-              ),
-            ),
-          ],
-        ),
+        StatusBadge.availability(car.available),
         const SizedBox(height: 14),
         Text(car.fullName, style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 6),
         Row(
           children: [
-            const Icon(Icons.star_rounded, size: 17, color: AppColors.gold),
-            const SizedBox(width: 3),
-            Text(
-              '${car.rating.toStringAsFixed(1)} (${car.reviewCount} avis)',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(width: 12),
             const Icon(
               Icons.place_rounded,
               size: 16,
@@ -587,6 +556,14 @@ class _TitleBlock extends StatelessWidget {
             const SizedBox(width: 2),
             Text(
               car.city,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Année ${car.year}',
               style: const TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
@@ -618,20 +595,6 @@ class _TitleBlock extends StatelessWidget {
                 ),
               ),
             ),
-            if (car.hasPromo) ...[
-              const SizedBox(width: 10),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  Formatters.moneyShort(car.oldPricePerDay!),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textMuted,
-                    decoration: TextDecoration.lineThrough,
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ],
@@ -647,9 +610,7 @@ class _SpecsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final specs = <(IconData, String, String)>[
-      (Icons.calendar_month_rounded, 'Année', '${car.year}'),
-      (Icons.settings_rounded, 'Boîte', car.transmission.label),
-      (Icons.local_gas_station_rounded, 'Carburant', car.fuel.label),
+      (Icons.branding_watermark_rounded, 'Marque', car.brand),
       (Icons.event_seat_rounded, 'Places', '${car.seats}'),
       (Icons.sensor_door_rounded, 'Portes', '${car.doors}'),
       (Icons.luggage_rounded, 'Bagages', '${car.luggage}'),
@@ -658,10 +619,12 @@ class _SpecsGrid extends StatelessWidget {
         'Climatisation',
         car.airConditioning ? 'Oui' : 'Non',
       ),
+      (Icons.calendar_month_rounded, 'Année', '${car.year}'),
+      (Icons.place_rounded, 'Lieu', car.city),
       (
-        Icons.route_rounded,
-        'Km inclus',
-        '${car.mileageLimitPerDay} km/j',
+        Icons.payments_rounded,
+        'Prix / jour',
+        Formatters.moneyShort(car.pricePerDay),
       ),
     ];
 

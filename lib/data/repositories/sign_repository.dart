@@ -1,5 +1,4 @@
 import '../local/app_database.dart';
-import '../mock/mock_learning.dart';
 import '../models/learning.dart';
 import 'sign_repository_prefs.dart';
 import 'sign_repository_sqflite.dart';
@@ -35,4 +34,5 @@ class SignRepositoryFactory {
 }
 
 /// Contenu de départ partagé (seed).
-List<RoadSign> defaultRoadSignSeed() => List<RoadSign>.from(MockLearning.signs);
+/// Aucun seed démo : les panneaux démarrent vides (CRUD uniquement).
+List<RoadSign> defaultRoadSignSeed() => const [];

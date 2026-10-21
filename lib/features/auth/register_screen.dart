@@ -67,7 +67,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!mounted) return;
 
     if (ok) {
-      context.read<AuctionProvider>().setUsername(auth.publicUsername);
+      context.read<AuctionProvider>().setUsername(
+        auth.publicUsername,
+        userId: auth.user?.id,
+      );
       AppSnack.success(context, 'Compte créé avec succès. Bienvenue !');
       context.go(Routes.home);
     } else {

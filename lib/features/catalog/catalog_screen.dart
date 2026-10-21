@@ -133,6 +133,11 @@ class _CatalogScreenState extends State<CatalogScreen> {
               toolbarHeight: 64,
               title: const Text('Location de véhicules'),
               actions: [
+                IconButton(
+                  tooltip: 'Gérer les véhicules',
+                  onPressed: () => context.push(Routes.manageCars),
+                  icon: const Icon(Icons.edit_note_rounded),
+                ),
                 CartButton(count: context.watch<CartProvider>().count),
                 const SizedBox(width: 6),
               ],
@@ -153,9 +158,24 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (wide) ...[
-                      Text(
-                        'Location de véhicules',
-                        style: Theme.of(context).textTheme.headlineMedium,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Location de véhicules',
+                              style: Theme.of(context).textTheme.headlineMedium,
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => context.push(Routes.manageCars),
+                            icon: const Icon(Icons.edit_note_rounded, size: 18),
+                            label: const Text('Gérer'),
+                          ),
+                          const SizedBox(width: 10),
+                          CartButton(
+                            count: context.watch<CartProvider>().count,
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                     ],

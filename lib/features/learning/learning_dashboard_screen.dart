@@ -90,20 +90,22 @@ class _LearningDashboardScreenState extends State<LearningDashboardScreen> {
             ),
             _LessonsGrid(learning: learning),
             const SizedBox(height: 26),
-            SectionHeader(
-              title: 'Quiz thématiques',
-              subtitle:
-                  'Testez vos connaissances et suivez votre progression',
-            ),
-            for (final quiz in learning.quizzes)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _QuizTile(
-                  quiz: quiz,
-                  result: learning.resultFor(quiz.id),
-                ),
+            if (learning.quizzes.isNotEmpty) ...[
+              SectionHeader(
+                title: 'Quiz thématiques',
+                subtitle:
+                    'Testez vos connaissances et suivez votre progression',
               ),
-            const SizedBox(height: 18),
+              for (final quiz in learning.quizzes)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _QuizTile(
+                    quiz: quiz,
+                    result: learning.resultFor(quiz.id),
+                  ),
+                ),
+              const SizedBox(height: 18),
+            ],
             SectionHeader(
               title: 'Examens publiés',
               subtitle: publishedExams.isEmpty
@@ -284,8 +286,8 @@ class _ProgressCard extends StatelessWidget {
           Text(
             learning.finalTestPassed
                 ? "Examen blanc réussi. Continuez à réviser régulièrement."
-                : "Terminez les leçons et les quiz pour débloquer la "
-                      "maîtrise de l'examen blanc.",
+                : "Ajoutez panneaux et examens via le CRUD, puis passez "
+                    "les examens publiés pour suivre votre progression.",
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.72),
               fontSize: 12.5,
@@ -316,7 +318,9 @@ class _LessonsGrid extends StatelessWidget {
       (
         Icons.rule_rounded,
         'Règles de circulation',
-        '${MockLearning.rules.length} thèmes détaillés',
+        learning.rules.isEmpty
+            ? 'Contenu à compléter'
+            : '${learning.rules.length} thèmes détaillés',
         AppColors.accent,
         Routes.rules,
       ),

@@ -1,29 +1,40 @@
-import '../mock/mock_cars.dart';
+import '../local/app_database.dart';
 import '../models/car.dart';
 import '../models/reservation.dart';
+import 'car_repository_prefs.dart';
+import 'car_repository_sqflite.dart';
 
-/// Point d'intégration backend : remplacer le corps des méthodes par des
-/// appels HTTP sans toucher aux écrans ni aux providers.
-class CarRepository {
-  const CarRepository();
+/// Contrat CRUD du parc véhicules (location).
+abstract class CarRepository {
+  Future<List<Car>> getAll();
 
-  static const Duration _latency = Duration(milliseconds: 650);
+  Future<Car?> byId(String id);
 
-  Future<List<Car>> fetchCars() async {
-    await Future<void>.delayed(_latency);
-    return List<Car>.from(MockCars.cars);
-  }
+  Future<Car> create(Car car);
 
-  Future<Car?> fetchCar(String id) async {
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    return MockCars.byId(id);
-  }
+  Future<Car> update(Car car);
 
-  Future<List<RentalExtra>> fetchExtras() async {
-    return MockCars.extras;
-  }
+  Future<void> delete(String id);
 
-  Future<List<String>> fetchCities() async => MockCars.villes;
+  Future<void> seedIfEmpty({List<Car>? seed});
 
-  Future<List<String>> fetchAgencies() async => MockCars.agences;
+  Future<List<RentalExtra>> fetchExtras();
+
+  Future<List<String>> fetchCities();
+
+  Future<List<String>> fetchAgencies();
 }
+
+/// - Mobile / APK → **sqflite**
+/// - Web (Chrome) → **shared_preferences**
+class CarRepositoryFactory {
+  static CarRepository create() {
+    if (AppDatabase.instance.isSupported) {
+      return SqfliteCarRepository();
+    }
+    return PrefsCarRepository();
+  }
+}
+
+/// Aucun seed démo : le catalogue démarre vide (CRUD uniquement).
+List<Car> defaultCarSeed() => const [];

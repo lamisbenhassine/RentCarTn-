@@ -10,7 +10,8 @@ import 'sign_repository.dart';
 /// Utilisé uniquement sur le **web**, où sqflite n'est pas disponible.
 /// Les ajouts / modifications / suppressions survivent au refresh (F5).
 class PrefsSignRepository implements SignRepository {
-  static const _storageKey = 'rentcar_road_signs_v1';
+  /// v2 : plus de seed démo (panneaux vides au premier lancement).
+  static const _storageKey = 'rentcar_road_signs_v2';
 
   List<RoadSign>? _cache;
 

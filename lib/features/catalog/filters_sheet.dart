@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/models/car.dart';
 import '../../state/car_provider.dart';
 
 /// Panneau de filtres du catalogue (bottom sheet).
@@ -16,9 +15,9 @@ class FiltersSheet extends StatelessWidget {
 
     return DraggableScrollableSheet(
       expand: false,
-      initialChildSize: 0.85,
+      initialChildSize: 0.75,
       maxChildSize: 0.95,
-      minChildSize: 0.5,
+      minChildSize: 0.45,
       builder: (context, scrollController) {
         return Column(
           children: [
@@ -75,12 +74,6 @@ class FiltersSheet extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      subtitle: Text(
-                        provider.searchRange == null
-                            ? 'Masque les véhicules indisponibles'
-                            : 'Selon la période sélectionnée',
-                        style: const TextStyle(fontSize: 12),
-                      ),
                     ),
                   ),
                   _Group(
@@ -105,21 +98,6 @@ class FiltersSheet extends StatelessWidget {
                     ),
                   ),
                   _Group(
-                    title: 'Catégorie',
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final c in CarCategory.values)
-                          FilterChip(
-                            label: Text(c.label),
-                            selected: provider.category == c,
-                            onSelected: (_) => provider.setCategory(c),
-                          ),
-                      ],
-                    ),
-                  ),
-                  _Group(
                     title: 'Marque',
                     child: Wrap(
                       spacing: 8,
@@ -130,35 +108,6 @@ class FiltersSheet extends StatelessWidget {
                             label: Text(brand),
                             selected: provider.selectedBrands.contains(brand),
                             onSelected: (_) => provider.toggleBrand(brand),
-                          ),
-                      ],
-                    ),
-                  ),
-                  _Group(
-                    title: 'Boîte de vitesses',
-                    child: Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final t in Transmission.values)
-                          FilterChip(
-                            label: Text(t.label),
-                            selected: provider.transmission == t,
-                            onSelected: (_) => provider.setTransmission(t),
-                          ),
-                      ],
-                    ),
-                  ),
-                  _Group(
-                    title: 'Carburant',
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final f in FuelType.values)
-                          FilterChip(
-                            label: Text(f.label),
-                            selected: provider.fuel == f,
-                            onSelected: (_) => provider.setFuel(f),
                           ),
                       ],
                     ),
@@ -178,7 +127,7 @@ class FiltersSheet extends StatelessWidget {
                     ),
                   ),
                   _Group(
-                    title: 'Agence / ville',
+                    title: 'Lieu',
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 8,

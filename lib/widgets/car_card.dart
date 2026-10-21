@@ -47,41 +47,20 @@ class CarCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          car.fullName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(
-                        Icons.star_rounded,
-                        size: 16,
-                        color: AppColors.gold,
-                      ),
-                      const SizedBox(width: 2),
-                      Text(
-                        car.rating.toStringAsFixed(1),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    car.fullName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${car.year} · ${car.category.label} · ${car.city}',
+                    '${car.year} · ${car.city}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -95,16 +74,20 @@ class CarCard extends StatelessWidget {
                     runSpacing: 8,
                     children: [
                       SpecChip(
-                        icon: Icons.settings_rounded,
-                        label: car.transmission.label,
-                      ),
-                      SpecChip(
-                        icon: _fuelIcon(car.fuel),
-                        label: car.fuel.label,
-                      ),
-                      SpecChip(
                         icon: Icons.event_seat_rounded,
                         label: '${car.seats} places',
+                      ),
+                      SpecChip(
+                        icon: Icons.sensor_door_rounded,
+                        label: '${car.doors} portes',
+                      ),
+                      SpecChip(
+                        icon: Icons.luggage_rounded,
+                        label: '${car.luggage} bag.',
+                      ),
+                      SpecChip(
+                        icon: Icons.ac_unit_rounded,
+                        label: car.airConditioning ? 'Clim' : 'Sans clim',
                       ),
                     ],
                   ),
@@ -115,42 +98,27 @@ class CarCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
                           children: [
-                            if (car.hasPromo)
-                              Text(
-                                Formatters.moneyShort(car.oldPricePerDay!),
-                                style: const TextStyle(
-                                  fontSize: 11.5,
-                                  color: AppColors.textMuted,
-                                  decoration: TextDecoration.lineThrough,
-                                ),
+                            Text(
+                              Formatters.moneyShort(car.pricePerDay),
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.5,
+                                color: AppColors.accent,
                               ),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Text(
-                                  Formatters.moneyShort(car.pricePerDay),
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.5,
-                                    color: AppColors.accent,
-                                  ),
-                                ),
-                                const SizedBox(width: 3),
-                                const Text(
-                                  '/ jour',
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    color: AppColors.textMuted,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
+                            ),
+                            const SizedBox(width: 3),
+                            const Text(
+                              '/ jour',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.textMuted,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -186,12 +154,6 @@ class CarCard extends StatelessWidget {
       ),
     );
   }
-
-  static IconData _fuelIcon(FuelType fuel) => switch (fuel) {
-    FuelType.electrique => Icons.electric_bolt_rounded,
-    FuelType.hybride => Icons.eco_rounded,
-    _ => Icons.local_gas_station_rounded,
-  };
 }
 
 class _Header extends StatelessWidget {
@@ -211,26 +173,12 @@ class _Header extends StatelessWidget {
           CarImage(url: car.mainImage, fit: BoxFit.cover),
           if (!car.available)
             Container(color: AppColors.navy.withValues(alpha: 0.45)),
-          Positioned(
-            top: 12,
-            left: 12,
-            child: Row(
-              children: [
-                if (showAvailability)
-                  StatusBadge.availability(car.available, dense: true),
-                if (car.hasPromo) ...[
-                  const SizedBox(width: 6),
-                  StatusBadge(
-                    label: car.promoLabel!,
-                    color: AppColors.gold,
-                    filled: true,
-                    dense: true,
-                    icon: Icons.local_offer_rounded,
-                  ),
-                ],
-              ],
+          if (showAvailability)
+            Positioned(
+              top: 12,
+              left: 12,
+              child: StatusBadge.availability(car.available, dense: true),
             ),
-          ),
           Positioned(
             top: 10,
             right: 10,
@@ -241,7 +189,7 @@ class _Header extends StatelessWidget {
                 borderRadius: BorderRadius.circular(100),
               ),
               child: Text(
-                car.category.label,
+                car.brand,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 11,
@@ -294,7 +242,7 @@ class CarCardCompact extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '${car.year} · ${car.transmission.label}',
+                  '${car.year} · ${car.seats} places · ${car.city}',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,

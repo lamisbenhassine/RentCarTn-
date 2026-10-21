@@ -208,6 +208,13 @@ class AppDatabase {
     if (oldVersion < 3) {
       await _createExamsTables(db);
     }
+    if (oldVersion < 4) {
+      // Retire les données de démo préremplies ; l'auth reste hors SQLite.
+      await db.delete(DatabaseConstants.examQuestions);
+      await db.delete(DatabaseConstants.exams);
+      await db.delete(DatabaseConstants.roadSigns);
+      await db.delete(DatabaseConstants.cars);
+    }
   }
 
   Future<void> close() async {

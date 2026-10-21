@@ -1,16 +1,31 @@
-import '../mock/mock_auctions.dart';
+import '../local/app_database.dart';
 import '../models/auction.dart';
+import 'auction_repository_prefs.dart';
+import 'auction_repository_sqflite.dart';
 
-/// Point d'intégration backend pour le module d'enchères.
-/// En production, les enchères devraient transiter par un canal temps réel
-/// (WebSocket) et l'heure de clôture être validée côté serveur.
-class AuctionRepository {
-  const AuctionRepository();
+/// Contrat CRUD des ventes aux enchères (+ offres).
+abstract class AuctionRepository {
+  Future<List<Auction>> getAll();
 
-  Future<List<Auction>> fetchAuctions() async {
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    return MockAuctions.build();
-  }
+  Future<Auction?> byId(String id);
 
-  Future<List<String>> fetchBidderPseudonyms() async => MockAuctions.pseudos;
+  Future<Auction> create(Auction auction);
+
+  Future<Auction> update(Auction auction);
+
+  Future<void> delete(String id);
+
+  Future<void> seedIfEmpty({List<Auction>? seed});
 }
+
+class AuctionRepositoryFactory {
+  static AuctionRepository create() {
+    if (AppDatabase.instance.isSupported) {
+      return SqfliteAuctionRepository();
+    }
+    return PrefsAuctionRepository();
+  }
+}
+
+/// Aucun seed démo.
+List<Auction> defaultAuctionSeed() => const [];

@@ -46,3 +46,8 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Secrets Gemini (ne jamais committer la clé API)
+lib/core/config/gemini_secrets.dart
+.env
+.env.*

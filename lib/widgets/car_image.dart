@@ -1,9 +1,11 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
 
 import '../core/theme/app_colors.dart';
 
-/// Image de véhicule avec état de chargement et repli dessiné si la source
-/// distante est indisponible (mode hors ligne, URL expirée).
+/// Image de véhicule : URL réseau, data URL (upload local) ou repli dessiné.
 class CarImage extends StatelessWidget {
   const CarImage({
     super.key,
@@ -24,21 +26,47 @@ class CarImage extends StatelessWidget {
   /// Assombrit l'image pour faire ressortir un texte superposé.
   final bool darken;
 
+  static bool isDataUrl(String value) => value.startsWith('data:image');
+
+  static Uint8List? bytesFromDataUrl(String value) {
+    final comma = value.indexOf(',');
+    if (comma < 0) return null;
+    try {
+      return base64Decode(value.substring(comma + 1));
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    Widget image = url.isEmpty
-        ? const _ImageFallback()
-        : Image.network(
-            url,
-            fit: fit,
-            height: height,
-            width: width,
-            loadingBuilder: (context, child, progress) {
-              if (progress == null) return child;
-              return const _ImageSkeleton();
-            },
-            errorBuilder: (_, _, _) => const _ImageFallback(),
-          );
+    Widget image;
+    if (url.isEmpty) {
+      image = const _ImageFallback();
+    } else if (isDataUrl(url)) {
+      final bytes = bytesFromDataUrl(url);
+      image = bytes == null
+          ? const _ImageFallback()
+          : Image.memory(
+              bytes,
+              fit: fit,
+              height: height,
+              width: width,
+              errorBuilder: (_, _, _) => const _ImageFallback(),
+            );
+    } else {
+      image = Image.network(
+        url,
+        fit: fit,
+        height: height,
+        width: width,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const _ImageSkeleton();
+        },
+        errorBuilder: (_, _, _) => const _ImageFallback(),
+      );
+    }
 
     if (darken) {
       image = Stack(

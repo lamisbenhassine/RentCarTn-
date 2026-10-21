@@ -77,12 +77,28 @@ class _ManageExamsScreenState extends State<ManageExamsScreen> {
         subtitle: 'CRUD admin · ${exams.length} examen'
             '${exams.length > 1 ? 's' : ''}',
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(Routes.examForm()),
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nouvel examen'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'exam_ai',
+            onPressed: () => context.push(Routes.examForm()),
+            backgroundColor: const Color(0xFF7C3AED),
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.auto_awesome_rounded),
+            label: const Text('Créer avec l\'IA'),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'exam_manual',
+            onPressed: () => context.push(Routes.examForm()),
+            backgroundColor: AppColors.accent,
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Nouvel examen'),
+          ),
+        ],
       ),
       body: ContentContainer(
         child: provider.state == LoadState.loading && exams.isEmpty
@@ -111,12 +127,21 @@ class _ManageExamsScreenState extends State<ManageExamsScreen> {
                     ),
                     children: [
                       const NoticeBox(
+                        icon: Icons.auto_awesome_rounded,
+                        title: 'Génération IA',
+                        message:
+                            'Clique « Créer avec l\'IA » (bouton violet en bas) '
+                            'puis sur l\'écran suivant utilise '
+                            '« Générer avec l\'IA (Gemini) ».',
+                      ),
+                      const SizedBox(height: 12),
+                      const NoticeBox(
                         icon: Icons.admin_panel_settings_outlined,
                         title: 'Espace administrateur',
                         message:
                             'Créez et modifiez les examens (titre, questions, '
-                            'seuil de réussite). Le passage du test par '
-                            'l\'utilisateur sera branché ensuite.',
+                            'seuil de réussite). Tu peux aussi ajouter les '
+                            'questions manuellement.',
                       ),
                       const SizedBox(height: 16),
                       if (exams.isEmpty)

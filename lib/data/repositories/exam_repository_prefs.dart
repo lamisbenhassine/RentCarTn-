@@ -7,7 +7,8 @@ import 'exam_repository.dart';
 
 /// Persistance web (localStorage) pour le CRUD examens.
 class PrefsExamRepository implements ExamRepository {
-  static const _storageKey = 'rentcar_exams_v1';
+  /// v2 : plus de seed démo (examens vides au premier lancement).
+  static const _storageKey = 'rentcar_exams_v2';
 
   List<Exam>? _cache;
 

@@ -219,31 +219,100 @@ class AuctionResultScreen extends StatelessWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 14),
-            const NoticeBox(
-              icon: Icons.science_outlined,
-              message:
-                  "Résultat issu de données simulées. Aucune vente réelle "
-                  "n'est conclue et aucun paiement n'est demandé.",
-            ),
-            const SizedBox(height: 18),
-            if (userWon)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => AppSnack.info(
-                    context,
-                    "Procédure de retrait simulée : un conseiller vous "
-                    "contacterait sous 24 h.",
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                  ),
-                  icon: const Icon(Icons.task_alt_rounded, size: 18),
-                  label: const Text('Finaliser l\'achat (démo)'),
+            if (userWon) ...[
+              const SizedBox(height: 14),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Reçu d\'adjudication',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    InfoRow(
+                      label: 'Montant à régler',
+                      value: Formatters.money(auction.currentPrice),
+                      dense: true,
+                      bold: true,
+                      valueColor: AppColors.accent,
+                    ),
+                    InfoRow(
+                      label: 'Statut paiement',
+                      value: auction.paymentStatus.label,
+                      dense: true,
+                      valueColor:
+                          auction.paymentStatus == AuctionPaymentStatus.paid
+                              ? AppColors.success
+                              : AppColors.warning,
+                      bold: true,
+                    ),
+                    if (auction.paidAt != null)
+                      InfoRow(
+                        label: 'Payé le',
+                        value: Formatters.dateTime(auction.paidAt!),
+                        dense: true,
+                      ),
+                    const SizedBox(height: 8),
+                    Text(
+                      auction.paymentStatus == AuctionPaymentStatus.paid
+                          ? 'Paiement enregistré. Présentez-vous en agence '
+                              'avec ce reçu pour retirer le véhicule.'
+                          : 'Rendez-vous en agence RentCar pour payer. '
+                              'Quand le paiement est effectué, validez ci-dessous '
+                              'pour passer le reçu à « Payé ».',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        height: 1.45,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            if (userWon) const SizedBox(height: 10),
+              const SizedBox(height: 14),
+              if (auction.paymentStatus != AuctionPaymentStatus.paid)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final ok = await context
+                          .read<AuctionProvider>()
+                          .markPaid(auction.id);
+                      if (!context.mounted) return;
+                      if (ok) {
+                        AppSnack.success(
+                          context,
+                          'Reçu mis à jour : paiement confirmé.',
+                        );
+                      } else {
+                        AppSnack.error(context, 'Paiement impossible.');
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                    ),
+                    icon: const Icon(Icons.payments_rounded, size: 18),
+                    label: const Text('Confirmer le paiement en agence'),
+                  ),
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                    ),
+                    icon: const Icon(Icons.check_circle_rounded, size: 18),
+                    label: const Text('Payé'),
+                  ),
+                ),
+              const SizedBox(height: 10),
+            ],
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -294,7 +363,7 @@ class _ResultBanner extends StatelessWidget {
             'Félicitations, vous avez gagné !',
             "Votre offre de "
                 "${Formatters.moneyShort(auction.currentPrice)} a remporté "
-                "cette vente (simulation).",
+                "cette vente. Réglez en agence pour finaliser.",
           )
         : auction.userHasBid
         ? (

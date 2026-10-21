@@ -26,6 +26,12 @@ dependencies:
   path: ^1.9.1
   shared_preferences: ^2.5.3
 
+  # Appels HTTP vers Google Gemini (génération de quiz / examens)
+  http: ^1.4.0
+
+  # Upload photo véhicule (galerie / fichiers — web + mobile)
+  image_picker: ^1.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

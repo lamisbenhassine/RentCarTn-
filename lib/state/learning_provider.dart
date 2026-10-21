@@ -5,7 +5,7 @@ import '../data/models/learning.dart';
 import '../data/repositories/sign_repository.dart';
 import 'load_state.dart';
 
-/// Progression pédagogique + CRUD des panneaux (sqflite / mémoire).
+/// Progression pédagogique + CRUD des panneaux (sqflite / prefs).
 class LearningProvider extends ChangeNotifier {
   LearningProvider({SignRepository? signRepository})
       : _signRepository = signRepository ?? SignRepositoryFactory.create();
@@ -23,15 +23,20 @@ class LearningProvider extends ChangeNotifier {
   LoadState get signsState => _signsState;
   String? get signsError => _signsError;
 
+  /// Quiz thématiques (vide — plus de démo). Les examens viennent d'ExamProvider.
   List<Quiz> get quizzes =>
       MockLearning.quizzes.where((q) => !q.isFinalTest).toList();
 
-  Quiz get finalTest =>
-      MockLearning.quizzes.firstWhere((q) => q.isFinalTest);
+  Quiz? get finalTest {
+    for (final q in MockLearning.quizzes) {
+      if (q.isFinalTest) return q;
+    }
+    return null;
+  }
 
   List<RuleSection> get rules => MockLearning.rules;
 
-  /// Source de vérité : base locale (ou mémoire sur web).
+  /// Source de vérité : base locale (ou prefs sur web).
   List<RoadSign> get signs => List.unmodifiable(_signs);
 
   List<RoadSign> signsByCategory(SignCategory category) =>
@@ -53,17 +58,23 @@ class LearningProvider extends ChangeNotifier {
   int get passedQuizzes => _results.values.where((r) => r.passed).length;
 
   double get overallProgress {
+    final finalId = finalTest?.id;
     final totalUnits = MockLearning.rules.length +
         quizzes.length +
         SignCategory.values.length +
-        1;
+        (finalId != null ? 1 : 0);
+    if (totalUnits == 0) {
+      // Progression basée sur les catégories de panneaux étudiées uniquement.
+      if (SignCategory.values.isEmpty) return 0;
+      return (_studiedCategories.length / SignCategory.values.length)
+          .clamp(0, 1);
+    }
     final done = _readSections.length +
         _results.keys
-            .where((id) => _results[id]!.passed && id != finalTest.id)
+            .where((id) => _results[id]!.passed && id != finalId)
             .length +
         _studiedCategories.length +
-        ((_results[finalTest.id]?.passed ?? false) ? 1 : 0);
-    if (totalUnits == 0) return 0;
+        ((finalId != null && (_results[finalId]?.passed ?? false)) ? 1 : 0);
     return (done / totalUnits).clamp(0, 1);
   }
 
@@ -73,11 +84,15 @@ class LearningProvider extends ChangeNotifier {
     return (sum / _results.length).round();
   }
 
-  bool get finalTestPassed => _results[finalTest.id]?.passed ?? false;
+  bool get finalTestPassed {
+    final t = finalTest;
+    if (t == null) return false;
+    return _results[t.id]?.passed ?? false;
+  }
 
   int get totalCorrect => _results.values.fold(0, (s, r) => s + r.score);
 
-  /// Charge (et seed si besoin) les panneaux depuis le repository.
+  /// Charge (et seed vide si besoin) les panneaux depuis le repository.
   Future<void> loadSigns({bool force = false}) async {
     if (_signsState == LoadState.loading) return;
     if (_signs.isNotEmpty && !force) return;
@@ -106,8 +121,7 @@ class LearningProvider extends ChangeNotifier {
 
   Future<RoadSign> createSign(RoadSign sign) async {
     final created = await _signRepository.create(sign);
-    _signs = [..._signs, created]
-      ..sort((a, b) => a.name.compareTo(b.name));
+    _signs = [..._signs, created]..sort((a, b) => a.name.compareTo(b.name));
     notifyListeners();
     return created;
   }
@@ -129,18 +143,17 @@ class LearningProvider extends ChangeNotifier {
   }
 
   void markSectionRead(String sectionId) {
-    if (_readSections.add(sectionId)) notifyListeners();
+    _readSections.add(sectionId);
+    notifyListeners();
   }
 
   void markCategoryStudied(SignCategory category) {
-    if (_studiedCategories.add(category.name)) notifyListeners();
+    _studiedCategories.add(category.name);
+    notifyListeners();
   }
 
   void saveResult(QuizResult result) {
-    final previous = _results[result.quizId];
-    if (previous == null || result.score >= previous.score) {
-      _results[result.quizId] = result;
-    }
+    _results[result.quizId] = result;
     notifyListeners();
   }
 

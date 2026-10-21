@@ -103,7 +103,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       publicUsername: _username.text.trim(),
     );
     auth.updateProfile(updated);
-    context.read<AuctionProvider>().setUsername(updated.publicUsername);
+    context.read<AuctionProvider>().setUsername(
+      updated.publicUsername,
+      userId: updated.id,
+    );
 
     setState(() => _saving = false);
     AppSnack.success(context, 'Profil mis à jour.');

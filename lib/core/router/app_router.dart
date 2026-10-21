@@ -17,7 +17,9 @@ import '../../features/booking/contract_screen.dart';
 import '../../features/booking/receipt_screen.dart';
 import '../../features/cart/cart_screen.dart';
 import '../../features/catalog/car_details_screen.dart';
+import '../../features/catalog/car_form_screen.dart';
 import '../../features/catalog/catalog_screen.dart';
+import '../../features/catalog/manage_cars_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../data/models/learning.dart';
 import '../../features/learning/exam_form_screen.dart';
@@ -46,6 +48,7 @@ class Routes {
 
   static const home = '/accueil';
   static const catalog = '/catalogue';
+  static const manageCars = '/catalogue/gerer';
   static const auctions = '/encheres';
   static const learning = '/code-de-la-route';
   static const profile = '/profil';
@@ -82,6 +85,11 @@ class Routes {
   static String examForm({String? id}) {
     if (id != null) return '/code-de-la-route/examens/$id/modifier';
     return '/code-de-la-route/examens/nouveau';
+  }
+
+  static String carForm({String? id}) {
+    if (id != null) return '/catalogue/$id/modifier';
+    return '/catalogue/nouveau';
   }
 }
 
@@ -160,6 +168,23 @@ GoRouter buildRouter(AuthProvider auth) {
         ],
       ),
 
+      GoRoute(
+        path: Routes.manageCars,
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const ManageCarsScreen(),
+      ),
+      GoRoute(
+        path: '/catalogue/nouveau',
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const CarFormScreen(),
+      ),
+      GoRoute(
+        path: '/catalogue/:id/modifier',
+        parentNavigatorKey: _rootKey,
+        builder: (_, state) => CarFormScreen(
+          carId: state.pathParameters['id'],
+        ),
+      ),
       GoRoute(
         path: '/voiture/:id',
         parentNavigatorKey: _rootKey,
