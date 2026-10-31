@@ -68,7 +68,12 @@ class _AuctionsScreenState extends State<AuctionsScreen> {
                   onPressed: () => context.push(Routes.myAuctions),
                   icon: const Icon(Icons.emoji_events_outlined),
                 ),
-                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: 'Gestion flotte',
+                  onPressed: () => context.push(Routes.fleet),
+                  icon: const Icon(Icons.inventory_2_outlined),
+                ),
+                const SizedBox(width: 4),
               ],
             ),
       body: ContentContainer(
@@ -120,6 +125,33 @@ class _AuctionsScreenState extends State<AuctionsScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => context.push(Routes.myAuctions),
+                            icon: const Icon(
+                              Icons.emoji_events_outlined,
+                              size: 18,
+                            ),
+                            label: const Text('Mes enchères'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => context.push(Routes.fleet),
+                            icon: const Icon(
+                              Icons.inventory_2_outlined,
+                              size: 18,
+                            ),
+                            label: const Text('Gestion flotte'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                   ],
                   _StatsStrip(provider: provider),
                   const SizedBox(height: 14),

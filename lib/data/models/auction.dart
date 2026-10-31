@@ -385,6 +385,9 @@ class Auction {
   }
 
   /// Crée une enchère à partir d'un véhicule du catalogue + infos admin.
+  ///
+  /// [startAt] : ouverture des offres. Avant cette date la vente est visible
+  /// (« À venir ») mais personne ne peut enchérir.
   factory Auction.fromCar({
     required Car car,
     required String auctionId,
@@ -395,9 +398,10 @@ class Auction {
     required String description,
     required double startingPrice,
     required Duration duration,
+    DateTime? startAt,
     double minIncrement = 500,
   }) {
-    final now = DateTime.now();
+    final openAt = startAt ?? DateTime.now();
     return Auction(
       id: auctionId,
       carId: car.id,
@@ -415,8 +419,8 @@ class Auction {
       images: List<String>.from(car.images),
       startingPrice: startingPrice,
       minIncrement: minIncrement,
-      startAt: now,
-      endAt: now.add(duration),
+      startAt: openAt,
+      endAt: openAt.add(duration),
       city: car.city,
       fuel: car.fuel,
       transmission: car.transmission,

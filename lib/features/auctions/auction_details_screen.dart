@@ -330,10 +330,28 @@ class _Gallery extends StatelessWidget {
         Positioned(
           top: 12,
           right: 12,
-          child: CountdownPill(
-            endAt: auction.endAt,
-            ended: !auction.isOpen,
-          ),
+          child: auction.computedStatus == AuctionStatus.aVenir
+              ? Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Text(
+                    'Ouvre le ${Formatters.dayMonth(auction.startAt)} · '
+                    '${Formatters.time(auction.startAt)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                )
+              : CountdownPill(
+                  endAt: auction.endAt,
+                  ended: !auction.isOpen,
+                ),
         ),
         Positioned(
           bottom: 14,

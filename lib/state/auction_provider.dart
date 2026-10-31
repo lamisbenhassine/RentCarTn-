@@ -503,6 +503,7 @@ class AuctionProvider extends ChangeNotifier {
     required String description,
     required double startingPrice,
     required Duration duration,
+    DateTime? startAt,
   }) async {
     final auction = Auction.fromCar(
       car: car,
@@ -514,6 +515,7 @@ class AuctionProvider extends ChangeNotifier {
       description: description,
       startingPrice: startingPrice,
       duration: duration,
+      startAt: startAt,
       minIncrement: 500,
     );
     final created = await _repository.create(auction);

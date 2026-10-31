@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Requis pour Gemini / HTTP (APK release). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="rentcar_tunisia"
         android:name="${applicationName}"

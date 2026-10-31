@@ -33,6 +33,10 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
   bool _saving = false;
   bool _ready = false;
 
+  /// false = démarre tout de suite ; true = date/heure choisies.
+  bool _scheduleStart = false;
+  DateTime _startAt = DateTime.now();
+
   /// Suggestions rapides ; le champ minutes reste libre (1, 5, 30…).
   static const _durationSuggestions = <(String, int)>[
     ('1 min', 1),
@@ -48,8 +52,50 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
     return Duration(minutes: minutes.clamp(1, 60 * 24 * 7));
   }
 
+  DateTime get _effectiveStartAt {
+    if (!_scheduleStart) return DateTime.now();
+    // Si la date choisie est déjà passée, on démarre immédiatement.
+    final now = DateTime.now();
+    return _startAt.isBefore(now) ? now : _startAt;
+  }
+
   void _applyDurationSuggestion(int minutes) {
     setState(() => _durationMinutes.text = '$minutes');
+  }
+
+  Future<void> _pickStartDateTime() async {
+    final now = DateTime.now();
+    final initial = _startAt.isBefore(now) ? now : _startAt;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime(initial.year, initial.month, initial.day),
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: now.add(const Duration(days: 365)),
+      helpText: 'Date d\'ouverture',
+      cancelText: 'Annuler',
+      confirmText: 'OK',
+    );
+    if (date == null || !mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+      helpText: 'Heure d\'ouverture',
+      cancelText: 'Annuler',
+      confirmText: 'OK',
+    );
+    if (time == null || !mounted) return;
+
+    setState(() {
+      _scheduleStart = true;
+      _startAt = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
+    });
   }
 
   @override
@@ -105,6 +151,7 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
               _startPrice.text.trim().replaceAll(',', '.'),
             ),
             duration: _duration,
+            startAt: _effectiveStartAt,
           );
       if (!mounted) return;
       Navigator.of(context).pop(auction);
@@ -299,7 +346,93 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
                       ),
                       const SizedBox(height: 18),
                       const Text(
-                        '3. Prix et durée',
+                        '3. Date d\'ouverture',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'La vente apparaît tout de suite. Personne ne peut '
+                        'enchérir avant la date choisie.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: AppColors.textMuted,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ChoiceChip(
+                            label: const Text('Maintenant'),
+                            selected: !_scheduleStart,
+                            onSelected: (_) => setState(() {
+                              _scheduleStart = false;
+                              _startAt = DateTime.now();
+                            }),
+                          ),
+                          ChoiceChip(
+                            label: const Text('Choisir une date'),
+                            selected: _scheduleStart,
+                            onSelected: (_) async {
+                              if (_scheduleStart) return;
+                              await _pickStartDateTime();
+                            },
+                          ),
+                        ],
+                      ),
+                      if (_scheduleStart) ...[
+                        const SizedBox(height: 10),
+                        AppCard(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.event_available_rounded,
+                                color: AppColors.accent,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Ouverture des enchères',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textMuted,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      Formatters.dateTime(_startAt),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _pickStartDateTime,
+                                child: const Text('Modifier'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 18),
+                      const Text(
+                        '4. Prix et durée',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -403,7 +536,11 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
                         )
                       : const Icon(Icons.publish_rounded, size: 18),
                   label: Text(
-                    _saving ? 'Publication…' : 'Publier aux enchères',
+                    _saving
+                        ? 'Publication…'
+                        : _scheduleStart
+                            ? 'Planifier la vente'
+                            : 'Publier aux enchères',
                   ),
                 ),
               ),

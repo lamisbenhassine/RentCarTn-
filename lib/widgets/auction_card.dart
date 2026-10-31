@@ -63,10 +63,12 @@ class AuctionCard extends StatelessWidget {
                   Positioned(
                     top: 12,
                     right: 12,
-                    child: CountdownPill(
-                      endAt: auction.endAt,
-                      ended: ended,
-                    ),
+                    child: status == AuctionStatus.aVenir
+                        ? _OpensAtPill(startAt: auction.startAt)
+                        : CountdownPill(
+                            endAt: auction.endAt,
+                            ended: ended,
+                          ),
                   ),
                   Positioned(
                     bottom: 12,
@@ -200,11 +202,19 @@ class AuctionCard extends StatelessWidget {
                             : AppColors.accent,
                       ),
                       icon: Icon(
-                        ended ? Icons.visibility_rounded : Icons.gavel_rounded,
+                        ended
+                            ? Icons.visibility_rounded
+                            : status == AuctionStatus.aVenir
+                                ? Icons.schedule_rounded
+                                : Icons.gavel_rounded,
                         size: 18,
                       ),
                       label: Text(
-                        ended ? 'Voir le résultat' : "Voir l'enchère",
+                        ended
+                            ? 'Voir le résultat'
+                            : status == AuctionStatus.aVenir
+                                ? 'Voir (bientôt)'
+                                : "Voir l'enchère",
                       ),
                     ),
                   ),
@@ -213,6 +223,38 @@ class AuctionCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _OpensAtPill extends StatelessWidget {
+  const _OpensAtPill({required this.startAt});
+
+  final DateTime startAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.schedule_rounded, size: 14, color: Colors.white),
+          const SizedBox(width: 5),
+          Text(
+            'Ouvre le ${Formatters.dayMonth(startAt)} · ${Formatters.time(startAt)}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
