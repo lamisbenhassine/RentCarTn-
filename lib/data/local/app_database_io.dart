@@ -36,6 +36,69 @@ class AppDatabase {
       },
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
+      onOpen: (db) async {
+        // Garantit le schéma auth même si une ancienne version était incomplète.
+        await _ensureUsersSchema(db);
+      },
+    );
+  }
+
+  /// Crée / complète la table users (nécessaire au login APK).
+  Future<void> _ensureUsersSchema(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${DatabaseConstants.users} (
+        id TEXT PRIMARY KEY NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        phone TEXT,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        city TEXT NOT NULL DEFAULT 'Tunis',
+        public_username TEXT NOT NULL,
+        member_since TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
+    Future<void> addColumn(String sql) async {
+      try {
+        await db.execute(sql);
+      } catch (_) {}
+    }
+
+    await addColumn(
+      'ALTER TABLE ${DatabaseConstants.users} '
+      'ADD COLUMN password_hash TEXT NOT NULL DEFAULT \'\'',
+    );
+    await addColumn(
+      'ALTER TABLE ${DatabaseConstants.users} '
+      "ADD COLUMN role TEXT NOT NULL DEFAULT 'user'",
+    );
+    await addColumn(
+      'ALTER TABLE ${DatabaseConstants.users} '
+      "ADD COLUMN city TEXT NOT NULL DEFAULT 'Tunis'",
+    );
+    await addColumn(
+      'ALTER TABLE ${DatabaseConstants.users} '
+      "ADD COLUMN public_username TEXT NOT NULL DEFAULT 'Utilisateur_TN'",
+    );
+    await addColumn(
+      'ALTER TABLE ${DatabaseConstants.users} '
+      "ADD COLUMN phone TEXT",
+    );
+    await addColumn(
+      'ALTER TABLE ${DatabaseConstants.users} '
+      "ADD COLUMN member_since TEXT NOT NULL DEFAULT ''",
+    );
+    await addColumn(
+      'ALTER TABLE ${DatabaseConstants.users} '
+      "ADD COLUMN created_at TEXT NOT NULL DEFAULT ''",
+    );
+    await addColumn(
+      'ALTER TABLE ${DatabaseConstants.users} '
+      "ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''",
     );
   }
 
@@ -240,6 +303,18 @@ class AppDatabase {
         );
       } catch (_) {}
     }
+    if (oldVersion < 7) {
+      await _ensureUsersSchema(db);
+    }
+  }
+
+  /// Réinitialise la base locale (dernier recours si auth cassée).
+  Future<void> reset() async {
+    await close();
+    final databasesPath = await getDatabasesPath();
+    final path = p.join(databasesPath, DatabaseConstants.fileName);
+    await deleteDatabase(path);
+    _db = await _open();
   }
 
   Future<void> close() async {

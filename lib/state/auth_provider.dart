@@ -60,8 +60,8 @@ class AuthProvider extends ChangeNotifier {
     } on AuthException catch (e) {
       _error = e.message;
       return false;
-    } catch (_) {
-      _error = 'Connexion impossible.';
+    } catch (e) {
+      _error = 'Connexion impossible : $e';
       return false;
     } finally {
       _setBusy(false);
@@ -93,8 +93,8 @@ class AuthProvider extends ChangeNotifier {
     } on AuthException catch (e) {
       _error = e.message;
       return false;
-    } catch (_) {
-      _error = 'Inscription impossible.';
+    } catch (e) {
+      _error = 'Inscription impossible : $e';
       return false;
     } finally {
       _setBusy(false);

@@ -5,8 +5,8 @@
 abstract final class DatabaseConstants {
   static const String fileName = 'rentcar_tunisia.db';
 
-  /// Version 6 : rôle utilisateur (admin / user / company).
-  static const int version = 6;
+  /// Version 7 : réparation schéma users (auth APK).
+  static const int version = 7;
 
   static const String users = 'users';
   static const String cars = 'cars';

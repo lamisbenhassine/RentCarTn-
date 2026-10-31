@@ -14,4 +14,6 @@ class AppDatabase {
 
   /// Indique que la persistence locale n'est pas active sur cette plateforme.
   bool get isSupported => false;
+
+  Future<void> reset() async {}
 }
