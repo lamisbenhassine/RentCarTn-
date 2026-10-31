@@ -187,6 +187,7 @@ class _MobileHeader extends StatelessWidget {
             children: [
               const Expanded(child: BrandLogo(compact: true, light: true)),
               CartButton(count: cartCount, dark: true),
+              const NotificationBell(dark: true),
               IconButton(
                 tooltip: 'Mes réservations',
                 onPressed: () => context.push(Routes.reservations),
@@ -780,7 +781,9 @@ class _FeaturedSection extends StatelessWidget {
   Widget build(BuildContext context) {
     if (cars.state.isLoading) return const _CarRowSkeleton();
 
-    final list = cars.featured;
+    final busyIds = context.watch<AuctionProvider>().carIdsInActiveAuction;
+    final list =
+        cars.featured.where((c) => !busyIds.contains(c.id)).toList();
     if (list.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -830,7 +833,9 @@ class _RecommendedSection extends StatelessWidget {
       );
     }
 
-    final list = cars.recommended;
+    final busyIds = context.watch<AuctionProvider>().carIdsInActiveAuction;
+    final list =
+        cars.recommended.where((c) => !busyIds.contains(c.id)).toList();
     if (list.isEmpty) return const SizedBox.shrink();
 
     return Column(

@@ -23,6 +23,7 @@ import '../../features/catalog/manage_cars_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../data/models/learning.dart';
 import '../../features/learning/exam_form_screen.dart';
+import '../../features/notifications/notifications_screen.dart';
 import '../../features/learning/learning_dashboard_screen.dart';
 import '../../features/learning/manage_exams_screen.dart';
 import '../../features/learning/manage_signs_screen.dart';
@@ -60,6 +61,7 @@ class Routes {
   static const reservations = '/mes-reservations';
   static const myAuctions = '/mes-encheres';
   static const fleet = '/gestion-flotte';
+  static const notifications = '/notifications';
   static const signs = '/code-de-la-route/panneaux';
   static const manageSigns = '/code-de-la-route/panneaux/gerer';
   static const manageExams = '/code-de-la-route/examens/gerer';
@@ -235,6 +237,11 @@ GoRouter buildRouter(AuthProvider auth) {
         path: Routes.editProfile,
         parentNavigatorKey: _rootKey,
         builder: (_, _) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: Routes.notifications,
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const NotificationsScreen(),
       ),
       GoRoute(
         path: Routes.signs,

@@ -11,6 +11,7 @@ import '../../data/models/user_profile.dart';
 import '../../state/auction_provider.dart';
 import '../../state/auth_provider.dart';
 import '../../state/learning_provider.dart';
+import '../../state/notification_provider.dart';
 import '../../state/reservation_provider.dart';
 import '../../widgets/common.dart';
 import '../shell/main_shell.dart';
@@ -66,6 +67,7 @@ class ProfileScreen extends StatelessWidget {
     final reservations = context.watch<ReservationProvider>();
     final auctions = context.watch<AuctionProvider>();
     final learning = context.watch<LearningProvider>();
+    final notifs = context.watch<NotificationProvider>();
 
     if (user == null) {
       return const Scaffold(
@@ -134,6 +136,14 @@ class ProfileScreen extends StatelessWidget {
                   label: 'Mon panier',
                   subtitle: 'Véhicules en attente de réservation',
                   onTap: () => context.push(Routes.cart),
+                ),
+                _MenuItem(
+                  icon: Icons.notifications_outlined,
+                  label: 'Notifications',
+                  subtitle: notifs.hasUnread
+                      ? '${notifs.unreadCount} non lue(s)'
+                      : 'Alertes enchères et annonces',
+                  onTap: () => context.push(Routes.notifications),
                 ),
               ],
             ),

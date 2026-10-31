@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/car.dart';
+import '../../state/auction_provider.dart';
 import '../../state/car_provider.dart';
 import '../../state/cart_provider.dart';
 import '../../state/load_state.dart';
@@ -120,7 +121,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<CarProvider>();
-    final cars = provider.filteredCars;
+    final busyIds = context.watch<AuctionProvider>().carIdsInActiveAuction;
+    final cars = provider.filteredCars
+        .where((c) => !busyIds.contains(c.id))
+        .toList(growable: false);
     final wide = Responsive.isWide(context);
 
     return Scaffold(

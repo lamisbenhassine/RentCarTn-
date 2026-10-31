@@ -96,7 +96,125 @@ class Bid {
       );
 }
 
-/// Véhicule du parc mis en vente aux enchères.
+/// Un véhicule inclus dans une vente (lot possible : 1 à N voitures).
+class AuctionLotVehicle {
+  const AuctionLotVehicle({
+    required this.carId,
+    required this.brand,
+    required this.model,
+    required this.year,
+    required this.mileage,
+    required this.condition,
+    required this.images,
+    required this.city,
+    required this.fuel,
+    required this.transmission,
+    this.hadAccident = false,
+    this.extraInfo = '',
+    this.description = '',
+    this.doors = 4,
+    this.seats = 5,
+    this.airConditioning = true,
+  });
+
+  final String carId;
+  final String brand;
+  final String model;
+  final int year;
+  final int mileage;
+  final VehicleCondition condition;
+  final bool hadAccident;
+  final String extraInfo;
+  final String description;
+  final List<String> images;
+  final String city;
+  final FuelType fuel;
+  final Transmission transmission;
+  final int doors;
+  final int seats;
+  final bool airConditioning;
+
+  String get title => '$brand $model $year';
+  String get fullName => '$brand $model';
+  String get mainImage => images.isNotEmpty ? images.first : '';
+
+  factory AuctionLotVehicle.fromCar({
+    required Car car,
+    required int mileage,
+    required VehicleCondition condition,
+    required bool hadAccident,
+    required String extraInfo,
+    required String description,
+  }) {
+    return AuctionLotVehicle(
+      carId: car.id,
+      brand: car.brand,
+      model: car.model,
+      year: car.year,
+      mileage: mileage,
+      condition: condition,
+      hadAccident: hadAccident,
+      extraInfo: extraInfo,
+      description: description.isEmpty ? car.description : description,
+      images: List<String>.from(car.images),
+      city: car.city,
+      fuel: car.fuel,
+      transmission: car.transmission,
+      doors: car.doors,
+      seats: car.seats,
+      airConditioning: car.airConditioning,
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+        'carId': carId,
+        'brand': brand,
+        'model': model,
+        'year': year,
+        'mileage': mileage,
+        'condition': condition.name,
+        'hadAccident': hadAccident,
+        'extraInfo': extraInfo,
+        'description': description,
+        'images': images,
+        'city': city,
+        'fuel': fuel.name,
+        'transmission': transmission.name,
+        'doors': doors,
+        'seats': seats,
+        'airConditioning': airConditioning,
+      };
+
+  factory AuctionLotVehicle.fromJson(Map<String, Object?> json) =>
+      AuctionLotVehicle(
+        carId: (json['carId'] as String?) ?? '',
+        brand: (json['brand'] as String?) ?? '',
+        model: (json['model'] as String?) ?? '',
+        year: (json['year'] as num?)?.toInt() ?? 0,
+        mileage: (json['mileage'] as num?)?.toInt() ?? 0,
+        condition: VehicleCondition.values.byName(
+          (json['condition'] as String?) ?? VehicleCondition.bon.name,
+        ),
+        hadAccident: json['hadAccident'] as bool? ?? false,
+        extraInfo: (json['extraInfo'] as String?) ?? '',
+        description: (json['description'] as String?) ?? '',
+        images: (json['images'] as List<dynamic>? ?? [])
+            .map((e) => e.toString())
+            .toList(),
+        city: (json['city'] as String?) ?? 'Tunis',
+        fuel: FuelType.values.byName(
+          (json['fuel'] as String?) ?? FuelType.essence.name,
+        ),
+        transmission: Transmission.values.byName(
+          (json['transmission'] as String?) ?? Transmission.manuelle.name,
+        ),
+        doors: (json['doors'] as num?)?.toInt() ?? 4,
+        seats: (json['seats'] as num?)?.toInt() ?? 5,
+        airConditioning: json['airConditioning'] as bool? ?? true,
+      );
+}
+
+/// Vente aux enchères — 1 voiture ou un lot de plusieurs.
 class Auction {
   Auction({
     required this.id,
@@ -116,6 +234,7 @@ class Auction {
     required this.transmission,
     required this.bids,
     this.carId,
+    this.lotVehicles = const [],
     this.hadAccident = false,
     this.extraInfo = '',
     this.doors = 4,
@@ -132,8 +251,11 @@ class Auction {
 
   final String id;
 
-  /// Lien vers le véhicule CRUD (optionnel pour anciennes ventes).
+  /// Lien vers le 1er véhicule CRUD (compat anciennes ventes).
   final String? carId;
+
+  /// Tous les véhicules du lot (1 = vente simple, N = lot).
+  final List<AuctionLotVehicle> lotVehicles;
   final String brand;
   final String model;
   final int year;
@@ -166,9 +288,48 @@ class Auction {
   final AuctionPaymentStatus paymentStatus;
   final DateTime? paidAt;
 
-  String get title => '$brand $model $year';
-  String get fullName => '$brand $model';
-  String get mainImage => images.isNotEmpty ? images.first : '';
+  /// Véhicules effectifs du lot (fallback sur les champs plats si ancien JSON).
+  List<AuctionLotVehicle> get vehicles {
+    if (lotVehicles.isNotEmpty) return lotVehicles;
+    return [
+      AuctionLotVehicle(
+        carId: carId ?? id,
+        brand: brand,
+        model: model,
+        year: year,
+        mileage: mileage,
+        condition: condition,
+        hadAccident: hadAccident,
+        extraInfo: extraInfo,
+        description: description,
+        images: images,
+        city: city,
+        fuel: fuel,
+        transmission: transmission,
+        doors: doors,
+        seats: seats,
+        airConditioning: airConditioning,
+      ),
+    ];
+  }
+
+  bool get isLot => vehicles.length > 1;
+  int get vehicleCount => vehicles.length;
+
+  Set<String> get allCarIds => {
+        for (final v in vehicles)
+          if (v.carId.isNotEmpty) v.carId,
+      };
+
+  String get title => isLot
+      ? 'Lot de $vehicleCount véhicules'
+      : '$brand $model $year';
+  String get fullName => isLot
+      ? vehicles.map((v) => v.fullName).join(' · ')
+      : '$brand $model';
+  String get mainImage => images.isNotEmpty
+      ? images.first
+      : (vehicles.isNotEmpty ? vehicles.first.mainImage : '');
 
   /// Âge du véhicule en années civiles.
   int get ageYears {
@@ -231,6 +392,7 @@ class Auction {
 
   Auction copyWith({
     String? carId,
+    List<AuctionLotVehicle>? lotVehicles,
     String? brand,
     String? model,
     int? year,
@@ -264,6 +426,7 @@ class Auction {
     return Auction(
       id: id,
       carId: carId ?? this.carId,
+      lotVehicles: lotVehicles ?? this.lotVehicles,
       brand: brand ?? this.brand,
       model: model ?? this.model,
       year: year ?? this.year,
@@ -297,6 +460,7 @@ class Auction {
   Map<String, Object?> toJson() => {
         'id': id,
         'carId': carId,
+        'lotVehicles': [for (final v in lotVehicles) v.toJson()],
         'brand': brand,
         'model': model,
         'year': year,
@@ -328,9 +492,15 @@ class Auction {
 
   factory Auction.fromJson(Map<String, Object?> json) {
     final rawBids = json['bids'] as List<dynamic>? ?? [];
+    final rawLot = json['lotVehicles'] as List<dynamic>? ?? [];
+    final lot = [
+      for (final item in rawLot)
+        AuctionLotVehicle.fromJson(Map<String, Object?>.from(item as Map)),
+    ];
     return Auction(
       id: json['id']! as String,
       carId: json['carId'] as String?,
+      lotVehicles: lot,
       brand: json['brand']! as String,
       model: json['model']! as String,
       year: (json['year'] as num).toInt(),
@@ -384,10 +554,65 @@ class Auction {
     );
   }
 
-  /// Crée une enchère à partir d'un véhicule du catalogue + infos admin.
-  ///
-  /// [startAt] : ouverture des offres. Avant cette date la vente est visible
-  /// (« À venir ») mais personne ne peut enchérir.
+  /// Crée une enchère (1 voiture ou lot) à partir du parc.
+  factory Auction.fromCars({
+    required String auctionId,
+    required List<AuctionLotVehicle> vehicles,
+    required double startingPrice,
+    required Duration duration,
+    DateTime? startAt,
+    double minIncrement = 500,
+    String? lotDescription,
+    List<String> extraImages = const [],
+  }) {
+    assert(vehicles.isNotEmpty, 'Au moins un véhicule requis');
+    final openAt = startAt ?? DateTime.now();
+    final first = vehicles.first;
+    // Photos de la vente en premier, puis photos des véhicules du lot.
+    final images = <String>[
+      ...extraImages.where((u) => u.trim().isNotEmpty),
+      for (final v in vehicles) ...v.images,
+    ];
+    final desc = lotDescription?.trim().isNotEmpty == true
+        ? lotDescription!.trim()
+        : vehicles.length == 1
+            ? first.description
+            : [
+                'Lot de ${vehicles.length} véhicules :',
+                for (final v in vehicles)
+                  '• ${v.title} — ${v.mileage} km — ${v.condition.shortLabel}'
+                      '${v.hadAccident ? ' (accident)' : ''}',
+              ].join('\n');
+
+    return Auction(
+      id: auctionId,
+      carId: first.carId,
+      lotVehicles: vehicles,
+      brand: first.brand,
+      model: first.model,
+      year: first.year,
+      mileage: first.mileage,
+      condition: first.condition,
+      hadAccident: first.hadAccident,
+      extraInfo: first.extraInfo,
+      doors: first.doors,
+      seats: first.seats,
+      airConditioning: first.airConditioning,
+      description: desc,
+      images: images,
+      startingPrice: startingPrice,
+      minIncrement: minIncrement,
+      startAt: openAt,
+      endAt: openAt.add(duration),
+      city: first.city,
+      fuel: first.fuel,
+      transmission: first.transmission,
+      bids: const [],
+      paymentStatus: AuctionPaymentStatus.none,
+    );
+  }
+
+  /// Compat : une seule voiture.
   factory Auction.fromCar({
     required Car car,
     required String auctionId,
@@ -401,31 +626,22 @@ class Auction {
     DateTime? startAt,
     double minIncrement = 500,
   }) {
-    final openAt = startAt ?? DateTime.now();
-    return Auction(
-      id: auctionId,
-      carId: car.id,
-      brand: car.brand,
-      model: car.model,
-      year: car.year,
-      mileage: mileage,
-      condition: condition,
-      hadAccident: hadAccident,
-      extraInfo: extraInfo,
-      doors: car.doors,
-      seats: car.seats,
-      airConditioning: car.airConditioning,
-      description: description.isEmpty ? car.description : description,
-      images: List<String>.from(car.images),
+    return Auction.fromCars(
+      auctionId: auctionId,
+      vehicles: [
+        AuctionLotVehicle.fromCar(
+          car: car,
+          mileage: mileage,
+          condition: condition,
+          hadAccident: hadAccident,
+          extraInfo: extraInfo,
+          description: description,
+        ),
+      ],
       startingPrice: startingPrice,
+      duration: duration,
+      startAt: startAt,
       minIncrement: minIncrement,
-      startAt: openAt,
-      endAt: openAt.add(duration),
-      city: car.city,
-      fuel: car.fuel,
-      transmission: car.transmission,
-      bids: const [],
-      paymentStatus: AuctionPaymentStatus.none,
     );
   }
 }

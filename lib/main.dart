@@ -7,12 +7,14 @@ import 'package:provider/provider.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/local/app_database.dart';
+import 'data/services/local_notification_service.dart';
 import 'state/auction_provider.dart';
 import 'state/auth_provider.dart';
 import 'state/car_provider.dart';
 import 'state/cart_provider.dart';
 import 'state/exam_provider.dart';
 import 'state/learning_provider.dart';
+import 'state/notification_provider.dart';
 import 'state/reservation_provider.dart';
 
 Future<void> main() async {
@@ -25,6 +27,9 @@ Future<void> main() async {
   if (AppDatabase.instance.isSupported) {
     await AppDatabase.instance.database;
   }
+
+  // Notifications téléphone (Android / iOS) — ignoré sur web.
+  await LocalNotificationService.instance.init();
 
   runApp(const RentCarApp());
 }
@@ -43,6 +48,9 @@ class RentCarApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuctionProvider()),
         ChangeNotifierProvider(create: (_) => LearningProvider()),
         ChangeNotifierProvider(create: (_) => ExamProvider()),
+        ChangeNotifierProvider(
+          create: (_) => NotificationProvider()..load(),
+        ),
       ],
       child: const _AppView(),
     );

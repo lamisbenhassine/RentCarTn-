@@ -34,17 +34,20 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
   }
 
   Future<void> _createAuction() async {
-    final created = await showModalBottomSheet<Auction>(
+    final created = await showModalBottomSheet<List<Auction>>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => const CreateAuctionSheet(),
     );
-    if (created == null || !mounted) return;
+    if (created == null || created.isEmpty || !mounted) return;
+    final first = created.first;
+    final when = first.computedStatus == AuctionStatus.aVenir
+        ? 'ouverture le ${Formatters.dateTime(first.startAt)}'
+        : 'ouverte maintenant';
     AppSnack.success(
       context,
-      'Vente « ${created.title} » publiée · '
-      'fin dans ${created.remaining.inMinutes} min.',
+      '« ${first.title} » publiée ($when). Notification envoyée.',
     );
   }
 

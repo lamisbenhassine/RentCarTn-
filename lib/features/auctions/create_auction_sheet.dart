@@ -1,13 +1,21 @@
+import 'dart:collection';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/config/gemini_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/auction.dart';
 import '../../data/models/car.dart';
+import '../../data/services/gemini_service.dart';
 import '../../state/auction_provider.dart';
 import '../../state/car_provider.dart';
+import '../../state/cart_provider.dart';
+import '../../state/notification_provider.dart';
 import '../../widgets/car_image.dart';
 import '../../widgets/common.dart';
 
@@ -27,11 +35,30 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
   final _description = TextEditingController();
   final _durationMinutes = TextEditingController(text: '30');
 
-  Car? _selected;
+  final _gemini = GeminiService();
+  final _picker = ImagePicker();
+
+  /// Véhicules inclus dans cette vacation (plusieurs possibles).
+  final LinkedHashSet<String> _selectedIds = LinkedHashSet<String>();
+
+  /// Photos ajoutées à la vente (affichées en premier dans la galerie).
+  final List<String> _auctionPhotos = [];
+  static const _maxPhotos = 8;
+
+  /// Véhicule dont on édite les infos (km, état, prix…).
+  Car? _focused;
   VehicleCondition _condition = VehicleCondition.bon;
   bool _hadAccident = false;
   bool _saving = false;
   bool _ready = false;
+  bool _estimating = false;
+  bool _pickingPhotos = false;
+  String? _priceRationale;
+  double? _priceMin;
+  double? _priceMax;
+
+  /// Brouillons par véhicule : changer de focus ne perd plus le km saisi.
+  final Map<String, _AuctionDraft> _drafts = {};
 
   /// false = démarre tout de suite ; true = date/heure choisies.
   bool _scheduleStart = false;
@@ -119,42 +146,276 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
     _extraInfo.dispose();
     _description.dispose();
     _durationMinutes.dispose();
+    _gemini.dispose();
     super.dispose();
   }
 
-  void _selectCar(Car car) {
+  void _saveCurrentDraft() {
+    final current = _focused;
+    if (current == null) return;
+    _drafts[current.id] = _AuctionDraft(
+      mileage: _mileage.text,
+      condition: _condition,
+      hadAccident: _hadAccident,
+      extraInfo: _extraInfo.text,
+      description: _description.text,
+      startPrice: _startPrice.text,
+      priceRationale: _priceRationale,
+      priceMin: _priceMin,
+      priceMax: _priceMax,
+    );
+  }
+
+  void _loadDraftFor(Car car) {
+    final draft = _drafts[car.id];
+    _focused = car;
+    _mileage.text = draft?.mileage ?? '';
+    _condition = draft?.condition ?? VehicleCondition.bon;
+    _hadAccident = draft?.hadAccident ?? false;
+    _extraInfo.text = draft?.extraInfo ?? '';
+    _description.text = draft?.description ?? car.description;
+    _startPrice.text = draft?.startPrice ?? '15000';
+    _priceRationale = draft?.priceRationale;
+    _priceMin = draft?.priceMin;
+    _priceMax = draft?.priceMax;
+  }
+
+  void _toggleCar(Car car) {
+    _saveCurrentDraft();
     setState(() {
-      _selected = car;
-      _mileage.text = '';
-      _description.text = car.description;
-      _extraInfo.clear();
+      if (_selectedIds.contains(car.id)) {
+        _selectedIds.remove(car.id);
+        if (_focused?.id == car.id) {
+          if (_selectedIds.isEmpty) {
+            _focused = null;
+          } else {
+            final nextId = _selectedIds.last;
+            final next = context
+                .read<CarProvider>()
+                .allCars
+                .where((c) => c.id == nextId)
+                .firstOrNull;
+            if (next != null) {
+              _loadDraftFor(next);
+            } else {
+              _focused = null;
+            }
+          }
+        }
+      } else {
+        _selectedIds.add(car.id);
+        _loadDraftFor(car);
+        // Enregistre un brouillon dès la sélection (km/prix à compléter).
+        _drafts[car.id] = _AuctionDraft(
+          mileage: _mileage.text,
+          condition: _condition,
+          hadAccident: _hadAccident,
+          extraInfo: _extraInfo.text,
+          description: _description.text,
+          startPrice: _startPrice.text,
+          priceRationale: _priceRationale,
+          priceMin: _priceMin,
+          priceMax: _priceMax,
+        );
+      }
     });
   }
 
-  Future<void> _submit() async {
-    if (_selected == null) {
-      AppSnack.error(context, 'Sélectionnez un véhicule du parc.');
+  void _focusCar(Car car) {
+    if (!_selectedIds.contains(car.id)) {
+      _toggleCar(car);
       return;
     }
-    if (!_formKey.currentState!.validate()) return;
+    if (_focused?.id == car.id) return;
+    _saveCurrentDraft();
+    setState(() => _loadDraftFor(car));
+  }
+
+  Future<void> _pickAuctionPhotos() async {
+    if (_auctionPhotos.length >= _maxPhotos) {
+      AppSnack.info(context, 'Maximum $_maxPhotos photos pour la vente.');
+      return;
+    }
+    setState(() => _pickingPhotos = true);
+    try {
+      final remaining = _maxPhotos - _auctionPhotos.length;
+      final files = await _picker.pickMultiImage(
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 72,
+        limit: remaining,
+      );
+      if (files.isEmpty || !mounted) return;
+
+      final added = <String>[];
+      for (final file in files) {
+        if (_auctionPhotos.length + added.length >= _maxPhotos) break;
+        final bytes = await file.readAsBytes();
+        if (bytes.isEmpty) continue;
+        final mime = _mimeFromName(file.name);
+        added.add('data:$mime;base64,${base64Encode(bytes)}');
+      }
+      if (!mounted) return;
+      if (added.isEmpty) {
+        AppSnack.error(context, 'Impossible de lire la photo.');
+        return;
+      }
+      setState(() => _auctionPhotos.addAll(added));
+    } catch (_) {
+      if (!mounted) return;
+      AppSnack.error(context, 'Sélection de photo impossible.');
+    } finally {
+      if (mounted) setState(() => _pickingPhotos = false);
+    }
+  }
+
+  String _mimeFromName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    return 'image/jpeg';
+  }
+
+  Future<void> _estimateStartPrice() async {
+    if (_focused == null) {
+      AppSnack.error(context, 'Sélectionnez d\'abord un véhicule.');
+      return;
+    }
+    final mileage = int.tryParse(_mileage.text.trim());
+    if (mileage == null || mileage < 0) {
+      AppSnack.error(
+        context,
+        'Indique le kilométrage avant l\'estimation IA.',
+      );
+      return;
+    }
+    if (!GeminiConfig.isConfigured) {
+      AppSnack.error(
+        context,
+        'Clé Gemini manquante (gemini_secrets.dart).',
+      );
+      return;
+    }
+
+    setState(() => _estimating = true);
+    try {
+      final result = await _gemini.estimateAuctionStartPrice(
+        car: _focused!,
+        mileage: mileage,
+        condition: _condition,
+        hadAccident: _hadAccident,
+        extraInfo: _extraInfo.text.trim(),
+        description: _description.text.trim(),
+      );
+      if (!mounted) return;
+      if (!result.ok || result.startingPrice == null) {
+        AppSnack.error(
+          context,
+          result.message ?? 'Estimation IA impossible.',
+        );
+        return;
+      }
+      setState(() {
+        _startPrice.text = result.startingPrice!.round().toString();
+        _priceRationale = result.rationale;
+        _priceMin = result.minPrice;
+        _priceMax = result.maxPrice;
+      });
+      AppSnack.success(
+        context,
+        'Prix estimé : ${Formatters.moneyShort(result.startingPrice!)}',
+      );
+    } finally {
+      if (mounted) setState(() => _estimating = false);
+    }
+  }
+
+  String? _validateDraft(Car car, _AuctionDraft? draft) {
+    final mileage = int.tryParse((draft?.mileage ?? '').trim());
+    if (mileage == null || mileage < 0) {
+      return 'Kilométrage manquant pour ${car.fullName}.';
+    }
+    return null;
+  }
+
+  Future<void> _submit() async {
+    if (_selectedIds.isEmpty) {
+      AppSnack.error(context, 'Sélectionnez au moins un véhicule.');
+      return;
+    }
+    _saveCurrentDraft();
+
+    final lotPrice = double.tryParse(
+      _startPrice.text.trim().replaceAll(',', '.'),
+    );
+    if (lotPrice == null || lotPrice <= 0) {
+      AppSnack.error(context, 'Indique le prix de départ de la vente.');
+      return;
+    }
+
+    final cars = context.read<CarProvider>().allCars;
+    final byId = {for (final c in cars) c.id: c};
+    final items = <({
+      Car car,
+      int mileage,
+      VehicleCondition condition,
+      bool hadAccident,
+      String extraInfo,
+      String description,
+    })>[];
+
+    for (final id in _selectedIds) {
+      final car = byId[id];
+      if (car == null) continue;
+      final draft = _drafts[id];
+      final error = _validateDraft(car, draft);
+      if (error != null) {
+        _focusCar(car);
+        AppSnack.error(context, error);
+        return;
+      }
+      items.add((
+        car: car,
+        mileage: int.parse(draft!.mileage.trim()),
+        condition: draft.condition,
+        hadAccident: draft.hadAccident,
+        extraInfo: draft.extraInfo.trim(),
+        description: draft.description.trim(),
+      ));
+    }
+
+    if (items.isEmpty) {
+      AppSnack.error(context, 'Aucun véhicule valide à publier.');
+      return;
+    }
+
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _saving = true);
     try {
-      final auction = await context.read<AuctionProvider>().createFromCar(
-            car: _selected!,
-            mileage: int.parse(_mileage.text.trim()),
-            condition: _condition,
-            hadAccident: _hadAccident,
-            extraInfo: _extraInfo.text.trim(),
-            description: _description.text.trim(),
-            startingPrice: double.parse(
-              _startPrice.text.trim().replaceAll(',', '.'),
-            ),
+      final created = await context.read<AuctionProvider>().createLot(
+            items: items,
+            startingPrice: lotPrice,
             duration: _duration,
             startAt: _effectiveStartAt,
+            images: List<String>.from(_auctionPhotos),
           );
       if (!mounted) return;
-      Navigator.of(context).pop(auction);
+
+      // Retiré de la location : véhicule mis en vente.
+      final carProvider = context.read<CarProvider>();
+      final cart = context.read<CartProvider>();
+      for (final item in items) {
+        final inCart = cart.itemForCar(item.car.id);
+        if (inCart != null) cart.remove(inCart.id);
+        await carProvider.delete(item.car.id);
+      }
+
+      if (!mounted) return;
+      await context.read<NotificationProvider>().notifyNewAuction(created);
+      if (!mounted) return;
+      Navigator.of(context).pop(<Auction>[created]);
     } catch (_) {
       if (!mounted) return;
       AppSnack.error(context, 'Publication impossible.');
@@ -194,10 +455,12 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
               padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Mettre un véhicule aux enchères',
-                      style: TextStyle(
+                      _selectedIds.length <= 1
+                          ? 'Mettre aux enchères'
+                          : 'Mettre ${_selectedIds.length} véhicules aux enchères',
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.4,
@@ -219,11 +482,23 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
                   controller: controller,
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                   children: [
-                    const Text(
-                      '1. Choisir un véhicule du parc',
-                      style: TextStyle(
+                    Text(
+                      '1. Choisir un ou plusieurs véhicules '
+                      '(${_selectedIds.length} sélectionné'
+                      '${_selectedIds.length > 1 ? 's' : ''})',
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Coche 1, 3 ou 10 voitures : elles forment UNE seule '
+                      'enchère (lot). Tape une voiture pour ses infos (km…).',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.textMuted,
+                        height: 1.35,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -249,16 +524,18 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: _CarPickTile(
                               car: car,
-                              selected: _selected?.id == car.id,
-                              onTap: () => _selectCar(car),
+                              checked: _selectedIds.contains(car.id),
+                              focused: _focused?.id == car.id,
+                              onToggle: () => _toggleCar(car),
+                              onTap: () => _focusCar(car),
                             ),
                           ),
                       ],
-                    if (_selected != null) ...[
+                    if (_focused != null) ...[
                       const SizedBox(height: 16),
-                      const Text(
-                        '2. Infos enchère (en plus du véhicule)',
-                        style: TextStyle(
+                      Text(
+                        '2. Infos enchère — ${_focused!.fullName}',
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
                         ),
@@ -270,20 +547,32 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${_selected!.fullName} · ${_selected!.year}',
+                              '${_focused!.fullName} · ${_focused!.year}',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Âge : ${DateTime.now().year - _selected!.year} an(s) · '
-                              '${_selected!.seats} places · ${_selected!.city}',
+                              'Âge : ${DateTime.now().year - _focused!.year} an(s) · '
+                              '${_focused!.seats} places · ${_focused!.city}',
                               style: const TextStyle(
                                 fontSize: 12.5,
                                 color: AppColors.textMuted,
                               ),
                             ),
+                            if (_selectedIds.length > 1) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'Complète le km / l\'état de chaque voiture. '
+                                'Le prix ci-dessous est celui du LOT entier.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.accent.withValues(alpha: 0.9),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -306,6 +595,7 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<VehicleCondition>(
+                        key: ValueKey('condition-${_focused!.id}-$_condition'),
                         initialValue: _condition,
                         decoration: const InputDecoration(
                           labelText: 'État / santé du véhicule *',
@@ -346,7 +636,7 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
                       ),
                       const SizedBox(height: 18),
                       const Text(
-                        '3. Date d\'ouverture',
+                        '3. Photos de la vente',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -354,8 +644,35 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'La vente apparaît tout de suite. Personne ne peut '
-                        'enchérir avant la date choisie.',
+                        'Ajoute des photos pour cette enchère (lot ou '
+                        'véhicule). Elles s\'affichent en premier.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: AppColors.textMuted,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _AuctionPhotoSection(
+                        images: _auctionPhotos,
+                        picking: _pickingPhotos,
+                        maxPhotos: _maxPhotos,
+                        onUpload: _pickAuctionPhotos,
+                        onRemove: (i) =>
+                            setState(() => _auctionPhotos.removeAt(i)),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        '4. Date d\'ouverture',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'La vente (lot) apparaît tout de suite. Personne ne '
+                        'peut enchérir avant la date choisie.',
                         style: TextStyle(
                           fontSize: 12.5,
                           color: AppColors.textMuted,
@@ -431,11 +748,27 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
                         ),
                       ],
                       const SizedBox(height: 18),
-                      const Text(
-                        '4. Prix et durée',
-                        style: TextStyle(
+                      Text(
+                        _selectedIds.length > 1
+                            ? '5. Prix du lot et durée'
+                            : '5. Prix et durée',
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _selectedIds.length > 1
+                            ? 'Un seul prix de départ pour tout le lot '
+                                '(${_selectedIds.length} voitures). L\'IA '
+                                'peut estimer à partir de la voiture en cours.'
+                            : 'L\'IA estime le prix de départ à partir du '
+                                'modèle, du km et de l\'état (marché Tunisie).',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: AppColors.textMuted,
+                          height: 1.35,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -445,8 +778,10 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
                         ],
-                        decoration: const InputDecoration(
-                          labelText: 'Prix de départ *',
+                        decoration: InputDecoration(
+                          labelText: _selectedIds.length > 1
+                              ? 'Prix de départ du lot *'
+                              : 'Prix de départ *',
                           suffixText: 'TND',
                           helperText: 'Surenchère fixe : +500 TND',
                         ),
@@ -456,6 +791,80 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
                           return null;
                         },
                       ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _estimating || _saving
+                              ? null
+                              : _estimateStartPrice,
+                          icon: _estimating
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.auto_awesome_rounded, size: 18),
+                          label: Text(
+                            _estimating
+                                ? 'Estimation Gemini…'
+                                : 'Estimer le prix avec l\'IA',
+                          ),
+                        ),
+                      ),
+                      if (_priceRationale != null &&
+                          _priceRationale!.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        AppCard(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(
+                                    Icons.psychology_rounded,
+                                    size: 18,
+                                    color: AppColors.accent,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Analyse IA',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (_priceMin != null && _priceMax != null) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Fourchette marché : '
+                                  '${Formatters.moneyShort(_priceMin!)} – '
+                                  '${Formatters.moneyShort(_priceMax!)}',
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 6),
+                              Text(
+                                _priceRationale!,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  height: 1.4,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       const Text(
                         'Durée de l\'enchère',
@@ -527,7 +936,8 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _saving || _selected == null ? null : _submit,
+                  onPressed:
+                      _saving || _selectedIds.isEmpty ? null : _submit,
                   icon: _saving
                       ? const SizedBox(
                           width: 18,
@@ -538,9 +948,13 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
                   label: Text(
                     _saving
                         ? 'Publication…'
-                        : _scheduleStart
-                            ? 'Planifier la vente'
-                            : 'Publier aux enchères',
+                        : _selectedIds.length > 1
+                            ? (_scheduleStart
+                                ? 'Planifier le lot (${_selectedIds.length} voitures)'
+                                : 'Publier le lot (${_selectedIds.length} voitures)')
+                            : (_scheduleStart
+                                ? 'Planifier la vente'
+                                : 'Publier aux enchères'),
                   ),
                 ),
               ),
@@ -552,23 +966,166 @@ class _CreateAuctionSheetState extends State<CreateAuctionSheet> {
   }
 }
 
+class _AuctionPhotoSection extends StatelessWidget {
+  const _AuctionPhotoSection({
+    required this.images,
+    required this.picking,
+    required this.maxPhotos,
+    required this.onUpload,
+    required this.onRemove,
+  });
+
+  final List<String> images;
+  final bool picking;
+  final int maxPhotos;
+  final VoidCallback onUpload;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          images.isEmpty
+              ? 'Jusqu\'à $maxPhotos photos (galerie).'
+              : '${images.length} / $maxPhotos photo${images.length > 1 ? 's' : ''}',
+          style: const TextStyle(
+            fontSize: 12.5,
+            color: AppColors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (images.isNotEmpty)
+          SizedBox(
+            height: 112,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: images.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (_, i) {
+                return Stack(
+                  children: [
+                    CarImage(
+                      url: images[i],
+                      height: 112,
+                      width: 148,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Material(
+                        color: AppColors.navy.withValues(alpha: 0.75),
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () => onRemove(i),
+                          child: const Padding(
+                            padding: EdgeInsets.all(5),
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (i == 0)
+                      Positioned(
+                        left: 8,
+                        bottom: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent,
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                          child: const Text(
+                            'Principale',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        if (images.isNotEmpty) const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: picking || images.length >= maxPhotos ? null : onUpload,
+          icon: picking
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add_photo_alternate_outlined, size: 20),
+          label: Text(
+            picking ? 'Chargement…' : 'Ajouter des photos',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AuctionDraft {
+  const _AuctionDraft({
+    required this.mileage,
+    required this.condition,
+    required this.hadAccident,
+    required this.extraInfo,
+    required this.description,
+    required this.startPrice,
+    this.priceRationale,
+    this.priceMin,
+    this.priceMax,
+  });
+
+  final String mileage;
+  final VehicleCondition condition;
+  final bool hadAccident;
+  final String extraInfo;
+  final String description;
+  final String startPrice;
+  final String? priceRationale;
+  final double? priceMin;
+  final double? priceMax;
+}
+
 class _CarPickTile extends StatelessWidget {
   const _CarPickTile({
     required this.car,
-    required this.selected,
+    required this.checked,
+    required this.focused,
+    required this.onToggle,
     required this.onTap,
   });
 
   final Car car;
-  final bool selected;
+  final bool checked;
+  final bool focused;
+  final VoidCallback onToggle;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected
-          ? AppColors.accent.withValues(alpha: 0.08)
-          : AppColors.surfaceAlt,
+      color: focused
+          ? AppColors.accent.withValues(alpha: 0.10)
+          : checked
+              ? AppColors.accent.withValues(alpha: 0.05)
+              : AppColors.surfaceAlt,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -578,12 +1135,26 @@ class _CarPickTile extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: selected ? AppColors.accent : AppColors.border,
-              width: selected ? 1.6 : 1,
+              color: focused
+                  ? AppColors.accent
+                  : checked
+                      ? AppColors.accent.withValues(alpha: 0.45)
+                      : AppColors.border,
+              width: focused ? 1.6 : 1,
             ),
           ),
           child: Row(
             children: [
+              IconButton(
+                tooltip: checked ? 'Retirer' : 'Ajouter à la vacation',
+                onPressed: onToggle,
+                icon: Icon(
+                  checked
+                      ? Icons.check_box_rounded
+                      : Icons.check_box_outline_blank_rounded,
+                  color: checked ? AppColors.accent : AppColors.border,
+                ),
+              ),
               CarImage(
                 url: car.mainImage,
                 height: 56,
@@ -612,14 +1183,17 @@ class _CarPickTile extends StatelessWidget {
                         color: AppColors.textMuted,
                       ),
                     ),
+                    if (focused)
+                      const Text(
+                        'En cours d\'édition',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.accent,
+                        ),
+                      ),
                   ],
                 ),
-              ),
-              Icon(
-                selected
-                    ? Icons.check_circle_rounded
-                    : Icons.circle_outlined,
-                color: selected ? AppColors.accent : AppColors.border,
               ),
             ],
           ),

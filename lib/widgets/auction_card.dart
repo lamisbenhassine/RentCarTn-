@@ -73,7 +73,14 @@ class AuctionCard extends StatelessWidget {
                   Positioned(
                     bottom: 12,
                     left: 12,
-                    child: StatusBadge.condition(auction.condition),
+                    child: auction.isLot
+                        ? StatusBadge(
+                            label: '${auction.vehicleCount} voitures',
+                            color: AppColors.accent,
+                            icon: Icons.directions_car_filled_rounded,
+                            dense: true,
+                          )
+                        : StatusBadge.condition(auction.condition),
                   ),
                 ],
               ),
@@ -95,18 +102,38 @@ class AuctionCard extends StatelessWidget {
                       color: AppColors.textPrimary,
                     ),
                   ),
+                  if (auction.isLot) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      auction.vehicles.map((v) => v.fullName).join(' · '),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 14,
                     runSpacing: 6,
                     children: [
-                      SpecChip(
-                        icon: Icons.speed_rounded,
-                        label: Formatters.mileage(auction.mileage),
-                      ),
+                      if (!auction.isLot)
+                        SpecChip(
+                          icon: Icons.speed_rounded,
+                          label: Formatters.mileage(auction.mileage),
+                        ),
+                      if (auction.isLot)
+                        SpecChip(
+                          icon: Icons.inventory_2_outlined,
+                          label: 'Lot · ${auction.vehicleCount}',
+                        ),
                       SpecChip(
                         icon: Icons.local_gas_station_rounded,
-                        label: auction.fuel.label,
+                        label: auction.isLot
+                            ? '${auction.vehicleCount} véhicules'
+                            : auction.fuel.label,
                       ),
                       SpecChip(
                         icon: Icons.place_rounded,
