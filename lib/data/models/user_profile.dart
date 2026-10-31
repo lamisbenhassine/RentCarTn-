@@ -40,6 +40,8 @@ class UserProfile {
 
   bool get isAdmin => role.isAdmin;
   bool get isClient => role.isClient;
+  bool get isCompany => role.isCompany;
+  bool get isParticular => role.isParticular;
 
   String get initials {
     final f = firstName.isNotEmpty ? firstName[0] : '';

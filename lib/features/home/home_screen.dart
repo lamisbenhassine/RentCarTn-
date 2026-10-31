@@ -432,9 +432,15 @@ class _QuickAccessRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = <(IconData, String, Color, String)>[
       (
+        Icons.auto_awesome_rounded,
+        'IA : trouver ma voiture',
+        AppColors.accent,
+        Routes.recommendQuiz,
+      ),
+      (
         Icons.event_note_rounded,
         'Mes réservations',
-        AppColors.accent,
+        AppColors.info,
         Routes.reservations,
       ),
       (
@@ -448,12 +454,6 @@ class _QuickAccessRow extends StatelessWidget {
         'Ventes aux enchères',
         AppColors.gold,
         Routes.auctions,
-      ),
-      (
-        Icons.emoji_events_rounded,
-        'Mes enchères',
-        AppColors.danger,
-        Routes.myAuctions,
       ),
     ];
 
@@ -782,8 +782,11 @@ class _FeaturedSection extends StatelessWidget {
     if (cars.state.isLoading) return const _CarRowSkeleton();
 
     final busyIds = context.watch<AuctionProvider>().carIdsInActiveAuction;
-    final list =
-        cars.featured.where((c) => !busyIds.contains(c.id)).toList();
+    final role = context.watch<AuthProvider>().role;
+    final list = cars.featured
+        .where((c) => !busyIds.contains(c.id))
+        .where((c) => c.isVisibleFor(role))
+        .toList();
     if (list.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -834,8 +837,11 @@ class _RecommendedSection extends StatelessWidget {
     }
 
     final busyIds = context.watch<AuctionProvider>().carIdsInActiveAuction;
-    final list =
-        cars.recommended.where((c) => !busyIds.contains(c.id)).toList();
+    final role = context.watch<AuthProvider>().role;
+    final list = cars.recommended
+        .where((c) => !busyIds.contains(c.id))
+        .where((c) => c.isVisibleFor(role))
+        .toList();
     if (list.isEmpty) return const SizedBox.shrink();
 
     return Column(

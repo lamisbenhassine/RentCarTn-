@@ -6,11 +6,13 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/mock/mock_cars.dart';
 import '../../data/models/car.dart';
+import '../../state/auth_provider.dart';
 import '../../state/car_provider.dart';
 import '../../widgets/car_image.dart';
 import '../../widgets/common.dart';
@@ -48,6 +50,7 @@ class _CarFormScreenState extends State<CarFormScreen> {
   CarCategory _category = CarCategory.economique;
   bool _airConditioning = true;
   bool _available = true;
+  bool _companyOnly = false;
   bool _saving = false;
   bool _picking = false;
   bool _ready = false;
@@ -69,7 +72,13 @@ class _CarFormScreenState extends State<CarFormScreen> {
     _description = TextEditingController();
     _features = TextEditingController();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _hydrate());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.read<AuthProvider>().isAdmin) {
+        context.go(Routes.manageCars);
+        return;
+      }
+      _hydrate();
+    });
   }
 
   Future<void> _hydrate() async {
@@ -93,6 +102,7 @@ class _CarFormScreenState extends State<CarFormScreen> {
           _category = existing.category;
           _airConditioning = existing.airConditioning;
           _available = existing.available;
+          _companyOnly = existing.companyOnly;
           _images
             ..clear()
             ..addAll(existing.images.where((u) => u.isNotEmpty));
@@ -209,6 +219,7 @@ class _CarFormScreenState extends State<CarFormScreen> {
       promoLabel: existing?.promoLabel,
       oldPricePerDay: existing?.oldPricePerDay,
       offeredExtraIds: _offeredExtraIds.toList(growable: false),
+      companyOnly: _companyOnly,
     );
 
     try {
@@ -474,6 +485,16 @@ class _CarFormScreenState extends State<CarFormScreen> {
                 title: const Text('Disponible à la location'),
                 value: _available,
                 onChanged: (v) => setState(() => _available = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Réservé aux entreprises'),
+                subtitle: const Text(
+                  'Visible et louable uniquement par le rôle Entreprise '
+                  '(location longue durée / flotte).',
+                ),
+                value: _companyOnly,
+                onChanged: (v) => setState(() => _companyOnly = v),
               ),
               const SizedBox(height: 8),
               TextFormField(

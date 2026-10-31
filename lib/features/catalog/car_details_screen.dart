@@ -10,6 +10,7 @@ import '../../core/utils/responsive.dart';
 import '../../data/models/car.dart';
 import '../../data/models/date_range.dart';
 import '../../data/models/reservation.dart';
+import '../../state/auth_provider.dart';
 import '../../state/car_provider.dart';
 import '../../state/load_state.dart';
 import '../../state/cart_provider.dart';
@@ -27,12 +28,21 @@ class CarDetailsScreen extends StatefulWidget {
 }
 
 class _CarDetailsScreenState extends State<CarDetailsScreen> {
+  static const _companyPresets = <(String, int)>[
+    ('1 mois', 30),
+    ('6 mois', 182),
+    ('1 an', 365),
+    ('2 ans', 730),
+    ('3 ans', 1095),
+  ];
+
   int _imageIndex = 0;
   late DateTime _start;
   late DateTime _end;
   String _pickupCity = 'Tunis';
   String _returnCity = 'Tunis';
   final Set<String> _selectedExtras = {};
+  int? _companyPresetDays;
 
   @override
   void initState() {
@@ -46,10 +56,16 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
       await context.read<CarProvider>().load();
       if (!mounted) return;
       final car = context.read<CarProvider>().carById(widget.carId);
+      final company = context.read<AuthProvider>().isCompany;
       if (car != null) {
         setState(() {
           _pickupCity = car.city;
           _returnCity = car.city;
+          // Entreprise : durée longue par défaut (1 an).
+          if (company) {
+            _companyPresetDays = 365;
+            _end = _start.add(const Duration(days: 365));
+          }
         });
       }
     });
@@ -57,14 +73,25 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
 
   DateRange get _range => DateRange(_start, _end);
 
+  void _applyCompanyPreset(int days) {
+    setState(() {
+      _companyPresetDays = days;
+      _end = _start.add(Duration(days: days));
+    });
+  }
+
   Future<void> _pickDates(Car car) async {
     final now = DateTime.now();
+    final company = context.read<AuthProvider>().isCompany;
     final result = await showDateRangePicker(
       context: context,
       firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 365)),
+      // Particulier : 1 an max. Entreprise : jusqu'à 5 ans.
+      lastDate: now.add(Duration(days: company ? 365 * 5 : 365)),
       initialDateRange: DateTimeRange(start: _start, end: _end),
-      helpText: 'Période de location',
+      helpText: company
+          ? 'Période de location entreprise'
+          : 'Période de location',
       saveText: 'Valider',
       locale: const Locale('fr', 'FR'),
     );
@@ -72,6 +99,7 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
     setState(() {
       _start = result.start;
       _end = result.end;
+      _companyPresetDays = null;
     });
   }
 
@@ -126,6 +154,7 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<CarProvider>();
+    final auth = context.watch<AuthProvider>();
     final car = provider.carById(widget.carId);
 
     if (provider.state.isLoading && car == null) {
@@ -147,6 +176,22 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
       );
     }
 
+    if (!car.isVisibleFor(auth.role)) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: EmptyState(
+          icon: Icons.business_rounded,
+          title: 'Réservé aux entreprises',
+          message:
+              'Ce véhicule est destiné à la location longue durée '
+              'pour les comptes Entreprise.',
+          actionLabel: 'Retour au catalogue',
+          onAction: () => context.go(Routes.catalog),
+        ),
+      );
+    }
+
+    final isCompany = auth.isCompany;
     final offeredExtras = _offeredExtras(car, provider);
     final extras = _extrasFor(car, provider);
     final conflict = car.conflictFor(_range);
@@ -221,13 +266,41 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
             ],
           ),
         ),
+        if (isCompany) ...[
+          const NoticeBox(
+            icon: Icons.business_rounded,
+            title: 'Location entreprise',
+            message:
+                'Choisissez une durée longue (1 mois à 3 ans) et ajoutez '
+                'plusieurs véhicules au panier pour constituer votre flotte.',
+          ),
+          const SizedBox(height: 14),
+          _Section(
+            title: 'Durée de contrat',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final (label, days) in _companyPresets)
+                  ChoiceChip(
+                    label: Text(label),
+                    selected: _companyPresetDays == days,
+                    onSelected: (_) => _applyCompanyPreset(days),
+                  ),
+              ],
+            ),
+          ),
+        ],
         _Section(
-          title: 'Disponibilité et dates',
+          title: isCompany
+              ? 'Période du contrat'
+              : 'Disponibilité et dates',
           child: _AvailabilityBlock(
             car: car,
             range: _range,
             conflict: conflict,
             onPickDates: () => _pickDates(car),
+            companyMode: isCompany,
           ),
         ),
         _Section(
@@ -414,7 +487,13 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
                 onPressed: bookable
                     ? () => _addToCart(car, provider, thenCheckout: true)
                     : null,
-                child: Text(bookable ? 'Réserver' : 'Indisponible'),
+                child: Text(
+                  !bookable
+                      ? 'Indisponible'
+                      : isCompany
+                          ? 'Ajouter à la flotte'
+                          : 'Réserver',
+                ),
               ),
             ),
           ],
@@ -774,12 +853,14 @@ class _AvailabilityBlock extends StatelessWidget {
     required this.range,
     required this.conflict,
     required this.onPickDates,
+    this.companyMode = false,
   });
 
   final Car car;
   final DateRange range;
   final DateRange? conflict;
   final VoidCallback onPickDates;
+  final bool companyMode;
 
   @override
   Widget build(BuildContext context) {
@@ -809,9 +890,11 @@ class _AvailabilityBlock extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Période sélectionnée',
-                      style: TextStyle(
+                    Text(
+                      companyMode
+                          ? 'Contrat entreprise'
+                          : 'Période sélectionnée',
+                      style: const TextStyle(
                         fontSize: 11,
                         color: AppColors.textMuted,
                         fontWeight: FontWeight.w600,
@@ -828,6 +911,17 @@ class _AvailabilityBlock extends StatelessWidget {
                         color: AppColors.textPrimary,
                       ),
                     ),
+                    if (companyMode) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '≈ ${Formatters.moneyShort(car.pricePerDay * 30)} / mois',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

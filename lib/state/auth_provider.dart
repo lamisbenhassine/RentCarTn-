@@ -25,6 +25,8 @@ class AuthProvider extends ChangeNotifier {
   UserRole get role => _user?.role ?? UserRole.user;
   bool get isAdmin => _user?.isAdmin ?? false;
   bool get isClient => _user?.isClient ?? false;
+  bool get isCompany => _user?.isCompany ?? false;
+  bool get isParticular => _user?.isParticular ?? false;
 
   /// Pseudonyme utilisé dans les enchères publiques.
   String get publicUsername => _user?.publicUsername ?? 'Vous';

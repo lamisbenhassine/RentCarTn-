@@ -72,7 +72,9 @@ class CarCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${car.year} · ${car.city}',
+                    car.companyOnly
+                        ? '${car.year} · ${car.city} · Entreprise'
+                        : '${car.year} · ${car.city}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -80,6 +82,30 @@ class CarCard extends StatelessWidget {
                       color: AppColors.textMuted,
                     ),
                   ),
+                  if (car.companyOnly) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.navy.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.navy.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: const Text(
+                        'Flotte entreprise',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.navy,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 14,

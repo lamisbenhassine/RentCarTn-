@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/mock/mock_learning.dart';
 import '../../data/models/learning.dart';
+import '../../data/services/tts_service.dart';
 import '../../state/exam_provider.dart';
 import '../../state/learning_provider.dart';
 import '../../widgets/common.dart';
@@ -36,7 +37,47 @@ class _QuizScreenState extends State<QuizScreen> {
   void initState() {
     super.initState();
     _answers = const [];
-    WidgetsBinding.instance.addPostFrameCallback((_) => _resolveQuiz());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      TtsService.instance.ensureReady();
+      _resolveQuiz();
+    });
+  }
+
+  @override
+  void dispose() {
+    TtsService.instance.stop();
+    super.dispose();
+  }
+
+  String get _questionSpeechId => 'quiz_${widget.quizId}_q$_index';
+
+  String get _questionSpeechText {
+    final q = _question;
+    final buffer = StringBuffer()
+      ..writeln('Question ${_index + 1}.')
+      ..writeln(q.question);
+    for (var i = 0; i < q.options.length; i++) {
+      buffer.writeln(
+        'Option ${String.fromCharCode(65 + i)} : ${q.options[i]}.',
+      );
+    }
+    if (_validated) {
+      final ok = q.isCorrect(_selected ?? -1);
+      buffer.writeln(ok ? 'Bonne réponse.' : 'Réponse incorrecte.');
+      if (q.explanation.trim().isNotEmpty) {
+        buffer.writeln('Explication : ${q.explanation.trim()}');
+      }
+    }
+    return buffer.toString();
+  }
+
+  Future<void> _speakQuestion() async {
+    final tts = TtsService.instance;
+    await tts.speak(id: _questionSpeechId, text: _questionSpeechText);
+    if (!mounted) return;
+    if (tts.lastError != null && tts.lastError!.trim().isNotEmpty) {
+      AppSnack.error(context, tts.lastError!);
+    }
   }
 
   Future<void> _resolveQuiz() async {
@@ -80,6 +121,7 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   void _next() {
+    TtsService.instance.stop();
     if (_index == _quiz!.questionCount - 1) {
       _finish();
       return;
@@ -92,6 +134,7 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   void _finish() {
+    TtsService.instance.stop();
     final quiz = _quiz!;
     final result = QuizResult(
       quizId: quiz.id,
@@ -105,6 +148,7 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   void _restart() {
+    TtsService.instance.stop();
     setState(() {
       _index = 0;
       _selected = null;
@@ -210,6 +254,30 @@ class _QuizScreenState extends State<QuizScreen> {
                                   color: quiz.color,
                                 ),
                               ),
+                            ),
+                            const Spacer(),
+                            ListenableBuilder(
+                              listenable: TtsService.instance,
+                              builder: (context, _) {
+                                final speaking = TtsService.instance
+                                    .isSpeakingId(_questionSpeechId);
+                                return TextButton.icon(
+                                  onPressed: _speakQuestion,
+                                  icon: Icon(
+                                    speaking
+                                        ? Icons.stop_rounded
+                                        : Icons.volume_up_rounded,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    speaking ? 'Arrêter' : 'Écouter',
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: quiz.color,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -657,6 +725,35 @@ class _ReviewCard extends StatelessWidget {
   final int given;
   final int number;
 
+  String get _speechId => 'quiz_review_$number';
+
+  String get _speechText {
+    final buffer = StringBuffer()
+      ..writeln('Question $number.')
+      ..writeln(question.question);
+    for (var i = 0; i < question.options.length; i++) {
+      buffer.writeln(
+        'Option ${String.fromCharCode(65 + i)} : ${question.options[i]}.',
+      );
+    }
+    buffer.writeln(
+      'Bonne réponse : ${question.options[question.correctIndex]}.',
+    );
+    if (question.explanation.trim().isNotEmpty) {
+      buffer.writeln('Explication : ${question.explanation.trim()}');
+    }
+    return buffer.toString();
+  }
+
+  Future<void> _speak(BuildContext context) async {
+    final tts = TtsService.instance;
+    await tts.speak(id: _speechId, text: _speechText);
+    if (!context.mounted) return;
+    if (tts.lastError != null && tts.lastError!.trim().isNotEmpty) {
+      AppSnack.error(context, tts.lastError!);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final correct = given == question.correctIndex;
@@ -694,6 +791,24 @@ class _ReviewCard extends StatelessWidget {
                     color: AppColors.textPrimary,
                   ),
                 ),
+              ),
+              ListenableBuilder(
+                listenable: TtsService.instance,
+                builder: (context, _) {
+                  final speaking =
+                      TtsService.instance.isSpeakingId(_speechId);
+                  return IconButton(
+                    tooltip: speaking ? 'Arrêter' : 'Écouter',
+                    onPressed: () => _speak(context),
+                    icon: Icon(
+                      speaking
+                          ? Icons.stop_circle_outlined
+                          : Icons.volume_up_rounded,
+                      size: 20,
+                      color: AppColors.accent,
+                    ),
+                  );
+                },
               ),
             ],
           ),

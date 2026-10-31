@@ -209,8 +209,11 @@ class _RailShortcuts extends StatelessWidget {
     final shortcuts = <(IconData, String, String)>[
       (Icons.event_note_rounded, 'Réservations', Routes.reservations),
       (Icons.emoji_events_rounded, 'Mes enchères', Routes.myAuctions),
-      if (isAdmin)
-        (Icons.inventory_2_rounded, 'Gestion flotte', Routes.fleet),
+      (
+        Icons.inventory_2_rounded,
+        isAdmin ? 'Gestion flotte' : 'Ventes flotte',
+        Routes.fleet,
+      ),
     ];
 
     return Column(

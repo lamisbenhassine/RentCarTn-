@@ -1,12 +1,13 @@
 /// Rôles applicatifs.
 enum UserRole {
-  /// Gestion : voitures, enchères, quiz / examens.
+  /// Gestion complète : créer / modifier / supprimer voitures & ventes.
   admin,
 
-  /// Client particulier : location, panier, enchères, tests.
+  /// Client particulier : location courte durée (jours / semaines).
   user,
 
-  /// Client entreprise : mêmes droits que [user].
+  /// Client entreprise : flotte multi-véhicules, location longue durée
+  /// (mois / années, ex. 3 ans).
   company,
 }
 
@@ -20,6 +21,10 @@ extension UserRoleX on UserRole {
       };
 
   bool get isAdmin => this == UserRole.admin;
+
+  bool get isCompany => this == UserRole.company;
+
+  bool get isParticular => this == UserRole.user;
 
   /// Peut réserver, panier, enchérir, passer les quiz.
   bool get isClient => this == UserRole.user || this == UserRole.company;

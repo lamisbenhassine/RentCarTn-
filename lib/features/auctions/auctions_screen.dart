@@ -70,12 +70,11 @@ class _AuctionsScreenState extends State<AuctionsScreen> {
                   onPressed: () => context.push(Routes.myAuctions),
                   icon: const Icon(Icons.emoji_events_outlined),
                 ),
-                if (isAdmin)
-                  IconButton(
-                    tooltip: 'Gestion flotte',
-                    onPressed: () => context.push(Routes.fleet),
-                    icon: const Icon(Icons.inventory_2_outlined),
-                  ),
+                IconButton(
+                  tooltip: isAdmin ? 'Gestion flotte' : 'Ventes flotte',
+                  onPressed: () => context.push(Routes.fleet),
+                  icon: const Icon(Icons.inventory_2_outlined),
+                ),
                 const SizedBox(width: 4),
               ],
             ),
@@ -119,17 +118,17 @@ class _AuctionsScreenState extends State<AuctionsScreen> {
                           ),
                           label: const Text('Mes enchères'),
                         ),
-                        if (isAdmin) ...[
-                          const SizedBox(width: 10),
-                          OutlinedButton.icon(
-                            onPressed: () => context.push(Routes.fleet),
-                            icon: const Icon(
-                              Icons.inventory_2_outlined,
-                              size: 18,
-                            ),
-                            label: const Text('Gestion flotte'),
+                        const SizedBox(width: 10),
+                        OutlinedButton.icon(
+                          onPressed: () => context.push(Routes.fleet),
+                          icon: const Icon(
+                            Icons.inventory_2_outlined,
+                            size: 18,
                           ),
-                        ],
+                          label: Text(
+                            isAdmin ? 'Gestion flotte' : 'Ventes flotte',
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -146,19 +145,19 @@ class _AuctionsScreenState extends State<AuctionsScreen> {
                             label: const Text('Mes enchères'),
                           ),
                         ),
-                        if (isAdmin) ...[
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => context.push(Routes.fleet),
-                              icon: const Icon(
-                                Icons.inventory_2_outlined,
-                                size: 18,
-                              ),
-                              label: const Text('Gestion flotte'),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => context.push(Routes.fleet),
+                            icon: const Icon(
+                              Icons.inventory_2_outlined,
+                              size: 18,
+                            ),
+                            label: Text(
+                              isAdmin ? 'Gestion flotte' : 'Ventes',
                             ),
                           ),
-                        ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 12),

@@ -1,4 +1,5 @@
 import 'date_range.dart';
+import 'user_role.dart';
 
 enum CarCategory { economique, berline, suv, luxe, electrique, utilitaire }
 
@@ -70,6 +71,8 @@ class Car {
       'livraison',
       'wifi',
     ],
+    /// Si true : visible / louable uniquement par le rôle Entreprise (+ admin).
+    this.companyOnly = false,
   });
 
   final String id;
@@ -99,6 +102,9 @@ class Car {
 
   /// Options supplémentaires proposées à la réservation (ids catalogue).
   final List<String> offeredExtraIds;
+
+  /// Véhicule réservé à la location entreprise (longue durée / flotte).
+  final bool companyOnly;
 
   String get fullName => '$brand $model';
   String get title => '$brand $model $year';
@@ -168,6 +174,7 @@ class Car {
     String? promoLabel,
     double? oldPricePerDay,
     List<String>? offeredExtraIds,
+    bool? companyOnly,
     bool clearPromo = false,
   }) {
     return Car(
@@ -198,6 +205,7 @@ class Car {
           ? null
           : (oldPricePerDay ?? this.oldPricePerDay),
       offeredExtraIds: offeredExtraIds ?? this.offeredExtraIds,
+      companyOnly: companyOnly ?? this.companyOnly,
     );
   }
 
@@ -226,6 +234,7 @@ class Car {
         'promoLabel': promoLabel,
         'oldPricePerDay': oldPricePerDay,
         'offeredExtraIds': offeredExtraIds,
+        'companyOnly': companyOnly,
         'bookedRanges': [
           for (final r in bookedRanges)
             {
@@ -290,7 +299,15 @@ class Car {
             'livraison',
             'wifi',
           ],
+      companyOnly: json['companyOnly'] as bool? ?? false,
       bookedRanges: ranges,
     );
+  }
+
+  /// Visibilité selon le rôle (voitures « entreprise » = company + admin).
+  bool isVisibleFor(UserRole role) {
+    if (role.isAdmin) return true;
+    if (companyOnly) return role.isCompany;
+    return true;
   }
 }

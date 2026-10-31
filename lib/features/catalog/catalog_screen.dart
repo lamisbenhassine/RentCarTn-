@@ -155,15 +155,18 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<CarProvider>();
+    final auth = context.watch<AuthProvider>();
     final busyIds = context.watch<AuctionProvider>().carIdsInActiveAuction;
     final cars = provider.filteredCars
         .where((c) => !busyIds.contains(c.id))
+        .where((c) => c.isVisibleFor(auth.role))
         .toList(growable: false);
     final visibleIds = {for (final c in cars) c.id};
     final selectedCount =
         _selectedIds.where(visibleIds.contains).length;
     final wide = Responsive.isWide(context);
-    final isAdmin = context.watch<AuthProvider>().isAdmin;
+    final isAdmin = auth.isAdmin;
+    final isCompany = auth.isCompany;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -175,12 +178,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
               toolbarHeight: 64,
               title: const Text('Location de véhicules'),
               actions: [
-                if (isAdmin)
-                  IconButton(
-                    tooltip: 'Gérer les véhicules',
-                    onPressed: () => context.push(Routes.manageCars),
-                    icon: const Icon(Icons.edit_note_rounded),
+                IconButton(
+                  tooltip: isAdmin
+                      ? 'Gérer les véhicules'
+                      : 'Voir le parc',
+                  onPressed: () => context.push(Routes.manageCars),
+                  icon: Icon(
+                    isAdmin
+                        ? Icons.edit_note_rounded
+                        : Icons.directions_car_outlined,
                   ),
+                ),
                 CartButton(count: context.watch<CartProvider>().count),
                 const SizedBox(width: 6),
               ],
@@ -209,17 +217,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
                               style: Theme.of(context).textTheme.headlineMedium,
                             ),
                           ),
-                          if (isAdmin) ...[
-                            OutlinedButton.icon(
-                              onPressed: () => context.push(Routes.manageCars),
-                              icon: const Icon(
-                                Icons.edit_note_rounded,
-                                size: 18,
-                              ),
-                              label: const Text('Gérer'),
+                          OutlinedButton.icon(
+                            onPressed: () => context.push(Routes.manageCars),
+                            icon: Icon(
+                              isAdmin
+                                  ? Icons.edit_note_rounded
+                                  : Icons.directions_car_outlined,
+                              size: 18,
                             ),
-                            const SizedBox(width: 10),
-                          ],
+                            label: Text(isAdmin ? 'Gérer' : 'Parc'),
+                          ),
+                          const SizedBox(width: 10),
                           CartButton(
                             count: context.watch<CartProvider>().count,
                           ),
@@ -234,6 +242,26 @@ class _CatalogScreenState extends State<CatalogScreen> {
                       onSort: _openSort,
                       filterCount: provider.activeFilterCount,
                     ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: () => context.push(Routes.recommendQuiz),
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                        label: const Text('IA : quelle voiture pour moi ?'),
+                      ),
+                    ),
+                    if (isCompany) ...[
+                      const SizedBox(height: 12),
+                      const NoticeBox(
+                        icon: Icons.business_rounded,
+                        title: 'Espace entreprise',
+                        message:
+                            'Location longue durée (jusqu\'à 3 ans) et '
+                            'plusieurs véhicules pour votre flotte. '
+                            'Ajoutez autant de voitures que nécessaire au panier.',
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     _CategoryChips(provider: provider),
                     const SizedBox(height: 10),

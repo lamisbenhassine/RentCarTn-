@@ -8,6 +8,7 @@ import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/auction.dart';
 import '../../state/auction_provider.dart';
+import '../../state/auth_provider.dart';
 import '../../state/load_state.dart';
 import '../../widgets/car_image.dart';
 import '../../widgets/common.dart';
@@ -15,8 +16,8 @@ import '../../widgets/status_badge.dart';
 import '../shell/main_shell.dart';
 import 'create_auction_sheet.dart';
 
-/// Écran de gestion des ventes de flotte — démonstration frontend.
-/// Permet de suivre, relancer, annuler et créer des ventes simulées.
+/// Ventes de flotte : Admin = publier / annuler / relancer ;
+/// User & Company = consultation seule.
 class FleetManagementScreen extends StatefulWidget {
   const FleetManagementScreen({super.key});
 
@@ -54,31 +55,39 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AuctionProvider>();
+    final isAdmin = context.watch<AuthProvider>().isAdmin;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: appScreenBar(
         context,
-        title: 'Gestion des ventes de flotte',
-        subtitle: 'Sélection parc · durée · prix · publication',
+        title: isAdmin
+            ? 'Gestion des ventes de flotte'
+            : 'Ventes de flotte',
+        subtitle: isAdmin
+            ? 'Sélection parc · durée · prix · publication'
+            : 'Consultation des ventes',
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilledButton.icon(
-              onPressed: _createAuction,
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Mettre en vente'),
+          if (isAdmin)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilledButton.icon(
+                onPressed: _createAuction,
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Mettre en vente'),
+              ),
             ),
-          ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _createAuction,
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Mettre en vente'),
-      ),
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: _createAuction,
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Mettre en vente'),
+            )
+          : null,
       body: provider.state.isLoading
           ? const Center(child: CircularProgressIndicator())
           : ContentContainer(
@@ -100,14 +109,21 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
                   90,
                 ),
                 children: [
-                  const NoticeBox(
-                    icon: Icons.admin_panel_settings_outlined,
-                    title: 'Espace gestionnaire',
-                    message:
-                        'Choisissez un véhicule du catalogue, complétez '
-                        'kilométrage / accident / état, fixez le prix de '
-                        'départ et la durée (30 min ou 1 h…). Les offres '
-                        'sont persistées localement.',
+                  NoticeBox(
+                    icon: isAdmin
+                        ? Icons.admin_panel_settings_outlined
+                        : Icons.visibility_outlined,
+                    title: isAdmin
+                        ? 'Espace gestionnaire'
+                        : 'Lecture seule',
+                    message: isAdmin
+                        ? 'Choisissez un véhicule du catalogue, complétez '
+                            'kilométrage / accident / état, fixez le prix de '
+                            'départ et la durée (30 min ou 1 h…). Les offres '
+                            'sont persistées localement.'
+                        : 'Vous pouvez consulter les ventes. Seul un '
+                            'administrateur peut publier, annuler ou '
+                            'relancer une vente.',
                   ),
                   const SizedBox(height: 16),
                   _KpiGrid(provider: provider),
@@ -120,33 +136,42 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
                         'actuellement aux enchères',
                   ),
                   if (provider.liveAuctions.isEmpty)
-                    const AppCard(
+                    AppCard(
                       child: EmptyState(
                         compact: true,
                         icon: Icons.gavel_rounded,
                         title: 'Aucune vente active',
-                        message:
-                            'Publiez une nouvelle vente pour alimenter la '
-                            'place de marché.',
+                        message: isAdmin
+                            ? 'Publiez une nouvelle vente pour alimenter la '
+                                'place de marché.'
+                            : 'Aucune vente n\'est ouverte pour le moment.',
                       ),
                     )
                   else
                     for (final auction in provider.liveAuctions)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _FleetRow(auction: auction),
+                        child: _FleetRow(
+                          auction: auction,
+                          canManage: isAdmin,
+                        ),
                       ),
                   const SizedBox(height: 18),
                   SectionHeader(
                     title: 'Ventes clôturées',
-                    subtitle: 'Résultats et relances possibles',
+                    subtitle: isAdmin
+                        ? 'Résultats et relances possibles'
+                        : 'Résultats',
                   ),
                   for (final auction in provider.auctions.where(
                     (a) => a.isEnded,
                   ))
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _FleetRow(auction: auction),
+                      child: _FleetRow(
+                        auction: auction,
+                        canManage: isAdmin,
+                      ),
                     ),
                   if (provider.upcoming.isNotEmpty) ...[
                     const SizedBox(height: 18),
@@ -157,7 +182,10 @@ class _FleetManagementScreenState extends State<FleetManagementScreen> {
                     for (final auction in provider.upcoming)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _FleetRow(auction: auction),
+                        child: _FleetRow(
+                          auction: auction,
+                          canManage: isAdmin,
+                        ),
                       ),
                   ],
                 ],
@@ -276,9 +304,10 @@ class _KpiGrid extends StatelessWidget {
 }
 
 class _FleetRow extends StatelessWidget {
-  const _FleetRow({required this.auction});
+  const _FleetRow({required this.auction, required this.canManage});
 
   final Auction auction;
+  final bool canManage;
 
   @override
   Widget build(BuildContext context) {
@@ -374,7 +403,7 @@ class _FleetRow extends StatelessWidget {
                 icon: const Icon(Icons.visibility_outlined, size: 16),
                 label: const Text('Consulter'),
               ),
-              if (auction.isOpen)
+              if (canManage && auction.isOpen)
                 OutlinedButton.icon(
                   onPressed: () async {
                     await provider.cancelAuction(auction.id);
@@ -394,7 +423,7 @@ class _FleetRow extends StatelessWidget {
                   icon: const Icon(Icons.block_rounded, size: 16),
                   label: const Text('Annuler'),
                 ),
-              if (!auction.isOpen)
+              if (canManage && !auction.isOpen)
                 ElevatedButton.icon(
                   onPressed: () async {
                     await provider.relaunch(

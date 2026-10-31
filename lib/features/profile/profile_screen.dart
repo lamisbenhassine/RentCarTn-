@@ -165,13 +165,16 @@ class ProfileScreen extends StatelessWidget {
                   subtitle: 'Véhicules d\'occasion aux enchères',
                   onTap: () => context.go(Routes.auctions),
                 ),
-                if (auth.isAdmin)
-                  _MenuItem(
-                    icon: Icons.inventory_2_outlined,
-                    label: 'Gestion de flotte',
-                    subtitle: 'Publier et suivre les ventes',
-                    onTap: () => context.push(Routes.fleet),
-                  ),
+                _MenuItem(
+                  icon: Icons.inventory_2_outlined,
+                  label: auth.isAdmin
+                      ? 'Gestion de flotte'
+                      : 'Ventes de flotte',
+                  subtitle: auth.isAdmin
+                      ? 'Publier et suivre les ventes'
+                      : 'Consulter les ventes (lecture seule)',
+                  onTap: () => context.push(Routes.fleet),
+                ),
               ],
             ),
             const SizedBox(height: 18),

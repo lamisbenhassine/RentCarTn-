@@ -36,6 +36,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _email = TextEditingController();
   final _licence = TextEditingController();
   final _notes = TextEditingController();
+  final _companyName = TextEditingController();
+  final _companyTaxId = TextEditingController();
 
   final _cardName = TextEditingController();
   final _cardNumber = TextEditingController();
@@ -50,6 +52,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   /// Permet de démontrer le chemin « paiement refusé ».
   bool _forceFailure = false;
+
+  bool get _isCompany => context.read<AuthProvider>().isCompany;
 
   @override
   void initState() {
@@ -72,6 +76,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _email,
       _licence,
       _notes,
+      _companyName,
+      _companyTaxId,
       _cardName,
       _cardNumber,
       _cardExpiry,
@@ -80,6 +86,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       c.dispose();
     }
     super.dispose();
+  }
+
+  String get _companyNotes {
+    final parts = <String>[
+      if (_companyName.text.trim().isNotEmpty)
+        'Entreprise : ${_companyName.text.trim()}',
+      if (_companyTaxId.text.trim().isNotEmpty)
+        'MF : ${_companyTaxId.text.trim()}',
+      if (_notes.text.trim().isNotEmpty) _notes.text.trim(),
+    ];
+    return parts.join(' · ');
   }
 
   void _next() {
@@ -167,7 +184,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       driverEmail: _email.text.trim(),
       driverLicence: _licence.text.trim(),
       payment: payment,
-      notes: _notes.text.trim(),
+      notes: _isCompany ? _companyNotes : _notes.text.trim(),
       secondDriver: _secondDriver,
     );
 
@@ -211,7 +228,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       backgroundColor: AppColors.surface,
       appBar: appScreenBar(
         context,
-        title: 'Finaliser la réservation',
+        title: context.watch<AuthProvider>().isCompany
+            ? 'Contrat entreprise'
+            : 'Finaliser la réservation',
         subtitle: 'Étape ${_step + 1} sur 3',
       ),
       body: Stack(
@@ -281,25 +300,66 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // ----------------------------------------------------------- Étape 1
 
   Widget _stepDriver() {
+    final isCompany = context.watch<AuthProvider>().isCompany;
     return Form(
       key: _driverFormKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _StepTitle(
-            title: 'Informations du conducteur',
-            subtitle:
-                'Ces informations figureront sur le contrat de location.',
+          _StepTitle(
+            title: isCompany
+                ? 'Informations entreprise'
+                : 'Informations du conducteur',
+            subtitle: isCompany
+                ? 'Contrat de flotte longue durée — plusieurs véhicules possibles.'
+                : 'Ces informations figureront sur le contrat de location.',
           ),
+          if (isCompany) ...[
+            const NoticeBox(
+              icon: Icons.business_rounded,
+              title: 'Location entreprise',
+              message:
+                  'Indiquez la raison sociale. Vous pouvez louer plusieurs '
+                  'voitures (1 mois à 3 ans) dans le même panier.',
+            ),
+            const SizedBox(height: 14),
+            AppCard(
+              child: Column(
+                children: [
+                  TextFormField(
+                    controller: _companyName,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Raison sociale *',
+                      prefixIcon: Icon(Icons.apartment_rounded),
+                    ),
+                    validator: (v) =>
+                        Validators.required(v, champ: 'La raison sociale'),
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _companyTaxId,
+                    decoration: const InputDecoration(
+                      labelText: 'Matricule fiscal',
+                      prefixIcon: Icon(Icons.badge_outlined),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
           AppCard(
             child: Column(
               children: [
                 TextFormField(
                   controller: _name,
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Nom complet du conducteur',
-                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  decoration: InputDecoration(
+                    labelText: isCompany
+                        ? 'Responsable / contact *'
+                        : 'Nom complet du conducteur',
+                    prefixIcon: const Icon(Icons.person_outline_rounded),
                   ),
                   validator: (v) =>
                       Validators.required(v, champ: 'Le nom complet'),
