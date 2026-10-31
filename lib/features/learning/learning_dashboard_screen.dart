@@ -9,6 +9,7 @@ import '../../core/utils/responsive.dart';
 import '../../data/mock/mock_learning.dart';
 import '../../data/models/exam.dart';
 import '../../data/models/learning.dart';
+import '../../state/auth_provider.dart';
 import '../../state/exam_provider.dart';
 import '../../state/learning_provider.dart';
 import '../../widgets/common.dart';
@@ -36,6 +37,7 @@ class _LearningDashboardScreenState extends State<LearningDashboardScreen> {
   Widget build(BuildContext context) {
     final learning = context.watch<LearningProvider>();
     final exams = context.watch<ExamProvider>();
+    final isAdmin = context.watch<AuthProvider>().isAdmin;
     final publishedExams = exams.publishedExams;
     final wide = Responsive.isWide(context);
 
@@ -120,11 +122,15 @@ class _LearningDashboardScreenState extends State<LearningDashboardScreen> {
                   compact: true,
                   icon: Icons.workspace_premium_outlined,
                   title: 'Pas encore d\'examen publié',
-                  message:
-                      'Créez un examen dans l\'espace admin et activez '
-                      '« Publié » pour qu\'il apparaisse ici.',
-                  actionLabel: 'Gérer les examens',
-                  onAction: () => context.push(Routes.manageExams),
+                  message: isAdmin
+                      ? 'Créez un examen et activez « Publié » '
+                          'pour qu\'il apparaisse ici.'
+                      : 'Aucun examen publié pour le moment. '
+                          'Revenez plus tard.',
+                  actionLabel: isAdmin ? 'Gérer les examens' : null,
+                  onAction: isAdmin
+                      ? () => context.push(Routes.manageExams)
+                      : null,
                 ),
               )
             else
@@ -136,56 +142,58 @@ class _LearningDashboardScreenState extends State<LearningDashboardScreen> {
                     learning: learning,
                   ),
                 ),
-            const SizedBox(height: 12),
-            AppCard(
-              onTap: () => context.push(Routes.manageExams),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
+            if (isAdmin) ...[
+              const SizedBox(height: 12),
+              AppCard(
+                onTap: () => context.push(Routes.manageExams),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.admin_panel_settings_outlined,
+                        color: AppColors.accent,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.admin_panel_settings_outlined,
-                      color: AppColors.accent,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Gérer les examens (admin)',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14.5,
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Gérer les examens (admin)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14.5,
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 3),
-                        Text(
-                          'Créer, modifier ou supprimer un examen final',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textMuted,
+                          SizedBox(height: 3),
+                          Text(
+                            'Créer, modifier ou supprimer un examen final',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textMuted,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: AppColors.textMuted,
-                  ),
-                ],
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.textMuted,
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
             const SizedBox(height: 22),
             if (learning.results.isNotEmpty) ...[
               SectionHeader(

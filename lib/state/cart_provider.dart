@@ -55,11 +55,6 @@ class CartProvider extends ChangeNotifier {
         'La date de retour doit suivre la date de départ.',
       );
     }
-    if (!car.available) {
-      return const CartResult.failure(
-        "Ce véhicule n'est pas disponible à la location.",
-      );
-    }
     final conflict = car.conflictFor(range);
     if (conflict != null) {
       return CartResult.failure(

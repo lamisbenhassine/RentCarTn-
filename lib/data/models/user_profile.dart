@@ -1,4 +1,6 @@
-/// Profil utilisateur simulé (aucune authentification réelle).
+import 'user_role.dart';
+
+/// Profil utilisateur (auth locale sqflite / prefs).
 class UserProfile {
   const UserProfile({
     required this.id,
@@ -6,6 +8,7 @@ class UserProfile {
     required this.lastName,
     required this.email,
     required this.phone,
+    this.role = UserRole.user,
     this.cin = '',
     this.licenceNumber = '',
     this.city = 'Tunis',
@@ -21,6 +24,7 @@ class UserProfile {
   final String lastName;
   final String email;
   final String phone;
+  final UserRole role;
   final String cin;
   final String licenceNumber;
   final String city;
@@ -34,6 +38,9 @@ class UserProfile {
 
   String get fullName => '$firstName $lastName';
 
+  bool get isAdmin => role.isAdmin;
+  bool get isClient => role.isClient;
+
   String get initials {
     final f = firstName.isNotEmpty ? firstName[0] : '';
     final l = lastName.isNotEmpty ? lastName[0] : '';
@@ -45,6 +52,7 @@ class UserProfile {
     String? lastName,
     String? email,
     String? phone,
+    UserRole? role,
     String? cin,
     String? licenceNumber,
     String? city,
@@ -59,6 +67,7 @@ class UserProfile {
       lastName: lastName ?? this.lastName,
       email: email ?? this.email,
       phone: phone ?? this.phone,
+      role: role ?? this.role,
       cin: cin ?? this.cin,
       licenceNumber: licenceNumber ?? this.licenceNumber,
       city: city ?? this.city,

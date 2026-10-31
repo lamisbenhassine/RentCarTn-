@@ -31,8 +31,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    await context.read<AuthProvider>().sendResetLink(_email.text);
+    final auth = context.read<AuthProvider>();
+    final ok = await auth.sendResetLink(_email.text);
     if (!mounted) return;
+    if (!ok) {
+      AppSnack.error(context, auth.error ?? 'Demande impossible.');
+      return;
+    }
     setState(() => _sent = true);
   }
 

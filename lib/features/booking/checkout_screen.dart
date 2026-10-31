@@ -13,6 +13,7 @@ import '../../core/utils/responsive.dart';
 import '../../core/utils/validators.dart';
 import '../../data/models/payment.dart';
 import '../../state/auth_provider.dart';
+import '../../state/car_provider.dart';
 import '../../state/cart_provider.dart';
 import '../../state/reservation_provider.dart';
 import '../../widgets/car_image.dart';
@@ -169,6 +170,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       notes: _notes.text.trim(),
       secondDriver: _secondDriver,
     );
+
+    final cars = context.read<CarProvider>();
+    for (final r in created) {
+      await cars.applyBooking(r.car.id, r.range);
+    }
 
     cart.clear();
     if (!mounted) return;

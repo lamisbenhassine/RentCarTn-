@@ -8,7 +8,9 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/car.dart';
+import '../../data/services/devis_pdf_service.dart';
 import '../../state/auction_provider.dart';
+import '../../state/auth_provider.dart';
 import '../../state/car_provider.dart';
 import '../../state/cart_provider.dart';
 import '../../state/load_state.dart';
@@ -29,6 +31,8 @@ class CatalogScreen extends StatefulWidget {
 
 class _CatalogScreenState extends State<CatalogScreen> {
   final _searchCtrl = TextEditingController();
+  final Set<String> _selectedIds = {};
+  bool _exportingDevis = false;
 
   @override
   void initState() {
@@ -118,6 +122,36 @@ class _CatalogScreenState extends State<CatalogScreen> {
     );
   }
 
+  void _toggleSelect(String id, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedIds.add(id);
+      } else {
+        _selectedIds.remove(id);
+      }
+    });
+  }
+
+  Future<void> _exportDevis(List<Car> cars) async {
+    final selected = cars.where((c) => _selectedIds.contains(c.id)).toList();
+    if (selected.isEmpty) {
+      AppSnack.info(context, 'Sélectionnez au moins un véhicule.');
+      return;
+    }
+    final client = context.read<AuthProvider>().user;
+    setState(() => _exportingDevis = true);
+    try {
+      await DevisPdfService().exportQuote(selected, client: client);
+      if (!mounted) return;
+      AppSnack.success(context, 'Devis PDF prêt à partager.');
+    } catch (_) {
+      if (!mounted) return;
+      AppSnack.error(context, 'Export du devis impossible.');
+    } finally {
+      if (mounted) setState(() => _exportingDevis = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<CarProvider>();
@@ -125,7 +159,11 @@ class _CatalogScreenState extends State<CatalogScreen> {
     final cars = provider.filteredCars
         .where((c) => !busyIds.contains(c.id))
         .toList(growable: false);
+    final visibleIds = {for (final c in cars) c.id};
+    final selectedCount =
+        _selectedIds.where(visibleIds.contains).length;
     final wide = Responsive.isWide(context);
+    final isAdmin = context.watch<AuthProvider>().isAdmin;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -137,11 +175,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
               toolbarHeight: 64,
               title: const Text('Location de véhicules'),
               actions: [
-                IconButton(
-                  tooltip: 'Gérer les véhicules',
-                  onPressed: () => context.push(Routes.manageCars),
-                  icon: const Icon(Icons.edit_note_rounded),
-                ),
+                if (isAdmin)
+                  IconButton(
+                    tooltip: 'Gérer les véhicules',
+                    onPressed: () => context.push(Routes.manageCars),
+                    icon: const Icon(Icons.edit_note_rounded),
+                  ),
                 CartButton(count: context.watch<CartProvider>().count),
                 const SizedBox(width: 6),
               ],
@@ -170,12 +209,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
                               style: Theme.of(context).textTheme.headlineMedium,
                             ),
                           ),
-                          OutlinedButton.icon(
-                            onPressed: () => context.push(Routes.manageCars),
-                            icon: const Icon(Icons.edit_note_rounded, size: 18),
-                            label: const Text('Gérer'),
-                          ),
-                          const SizedBox(width: 10),
+                          if (isAdmin) ...[
+                            OutlinedButton.icon(
+                              onPressed: () => context.push(Routes.manageCars),
+                              icon: const Icon(
+                                Icons.edit_note_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Gérer'),
+                            ),
+                            const SizedBox(width: 10),
+                          ],
                           CartButton(
                             count: context.watch<CartProvider>().count,
                           ),
@@ -211,6 +255,54 @@ class _CatalogScreenState extends State<CatalogScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: selectedCount == 0
+          ? null
+          : BottomActionBar(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$selectedCount véhicule'
+                          '${selectedCount > 1 ? 's' : ''} sélectionné'
+                          '${selectedCount > 1 ? 's' : ''}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => setState(_selectedIds.clear),
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text('Tout désélectionner'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed:
+                        _exportingDevis ? null : () => _exportDevis(cars),
+                    icon: _exportingDevis
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                    label: const Text('Devis'),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -262,10 +354,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
           crossAxisSpacing: 16,
           mainAxisExtent: 352,
         ),
-        itemBuilder: (_, i) => CarCard(
-          car: cars[i],
-          onTap: () => context.push(Routes.car(cars[i].id)),
-        ),
+        itemBuilder: (_, i) {
+          final car = cars[i];
+          return CarCard(
+            car: car,
+            selected: _selectedIds.contains(car.id),
+            onSelectionChanged: (v) => _toggleSelect(car.id, v),
+            onTap: () => context.push(Routes.car(car.id)),
+          );
+        },
       ),
     );
   }

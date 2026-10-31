@@ -16,12 +16,16 @@ class CarCard extends StatelessWidget {
     required this.onTap,
     this.onReserve,
     this.showAvailability = true,
+    this.selected = false,
+    this.onSelectionChanged,
   });
 
   final Car car;
   final VoidCallback onTap;
   final VoidCallback? onReserve;
   final bool showAvailability;
+  final bool selected;
+  final ValueChanged<bool>? onSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +36,10 @@ class CarCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surfaceAlt,
           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(
+            color: selected ? AppColors.accent : AppColors.border,
+            width: selected ? 2 : 1,
+          ),
           boxShadow: AppTheme.softShadow,
         ),
         clipBehavior: Clip.antiAlias,
@@ -40,7 +47,12 @@ class CarCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _Header(car: car, showAvailability: showAvailability),
+            _Header(
+              car: car,
+              showAvailability: showAvailability,
+              selected: selected,
+              onSelectionChanged: onSelectionChanged,
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
               child: Column(
@@ -157,10 +169,17 @@ class CarCard extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.car, required this.showAvailability});
+  const _Header({
+    required this.car,
+    required this.showAvailability,
+    this.selected = false,
+    this.onSelectionChanged,
+  });
 
   final Car car;
   final bool showAvailability;
+  final bool selected;
+  final ValueChanged<bool>? onSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -179,25 +198,60 @@ class _Header extends StatelessWidget {
               left: 12,
               child: StatusBadge.availability(car.available, dense: true),
             ),
-          Positioned(
-            top: 10,
-            right: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppColors.navy.withValues(alpha: 0.72),
-                borderRadius: BorderRadius.circular(100),
+          if (onSelectionChanged != null)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => onSelectionChanged!(!selected),
+                  customBorder: const CircleBorder(),
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.accent
+                          : Colors.white.withValues(alpha: 0.92),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: selected ? AppColors.accent : AppColors.border,
+                        width: 1.5,
+                      ),
+                      boxShadow: AppTheme.softShadow,
+                    ),
+                    child: Icon(
+                      selected
+                          ? Icons.check_rounded
+                          : Icons.check_box_outline_blank_rounded,
+                      size: 18,
+                      color: selected ? Colors.white : AppColors.navy,
+                    ),
+                  ),
+                ),
               ),
-              child: Text(
-                car.brand,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+            )
+          else
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.navy.withValues(alpha: 0.72),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text(
+                  car.brand,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/user_profile.dart';
+import '../../data/models/user_role.dart';
 import '../../state/auction_provider.dart';
 import '../../state/auth_provider.dart';
 import '../../state/learning_provider.dart';
@@ -37,9 +38,7 @@ class ProfileScreen extends StatelessWidget {
         ),
         title: const Text('Se déconnecter ?'),
         content: const Text(
-          "Vous serez redirigé vers l'écran d'accueil. Les données de la "
-          "session de démonstration (panier, enchères, progression) seront "
-          "conservées jusqu'à la fermeture de l'application.",
+          'Vous serez déconnecté de votre compte RentCar Tunisia.',
           style: TextStyle(fontSize: 13.5, height: 1.5),
         ),
         actions: [
@@ -57,7 +56,7 @@ class ProfileScreen extends StatelessWidget {
     );
 
     if (confirmed != true || !context.mounted) return;
-    context.read<AuthProvider>().logout();
+    await context.read<AuthProvider>().logout();
   }
 
   @override
@@ -166,12 +165,13 @@ class ProfileScreen extends StatelessWidget {
                   subtitle: 'Véhicules d\'occasion aux enchères',
                   onTap: () => context.go(Routes.auctions),
                 ),
-                _MenuItem(
-                  icon: Icons.inventory_2_outlined,
-                  label: 'Gestion de flotte (démo)',
-                  subtitle: 'Tableau de bord des ventes',
-                  onTap: () => context.push(Routes.fleet),
-                ),
+                if (auth.isAdmin)
+                  _MenuItem(
+                    icon: Icons.inventory_2_outlined,
+                    label: 'Gestion de flotte',
+                    subtitle: 'Publier et suivre les ventes',
+                    onTap: () => context.push(Routes.fleet),
+                  ),
               ],
             ),
             const SizedBox(height: 18),
@@ -321,6 +321,15 @@ class _ProfileHeader extends StatelessWidget {
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  user.role.label,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),

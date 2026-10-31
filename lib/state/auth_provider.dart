@@ -1,26 +1,53 @@
 import 'package:flutter/foundation.dart';
 
 import '../data/models/user_profile.dart';
+import '../data/models/user_role.dart';
 import '../data/repositories/auth_repository.dart';
 
-/// Session utilisateur maintenue uniquement en mémoire (démo frontend).
+/// Session utilisateur (sqflite sur téléphone, prefs sur web).
 class AuthProvider extends ChangeNotifier {
   AuthProvider({AuthRepository? repository})
-    : _repository = repository ?? const AuthRepository();
+      : _repository = repository ?? AuthRepositoryFactory.create();
 
   final AuthRepository _repository;
 
   UserProfile? _user;
   bool _busy = false;
+  bool _restoring = true;
   String? _error;
 
   UserProfile? get user => _user;
   bool get isLoggedIn => _user != null;
   bool get busy => _busy;
+  bool get restoring => _restoring;
   String? get error => _error;
+
+  UserRole get role => _user?.role ?? UserRole.user;
+  bool get isAdmin => _user?.isAdmin ?? false;
+  bool get isClient => _user?.isClient ?? false;
 
   /// Pseudonyme utilisé dans les enchères publiques.
   String get publicUsername => _user?.publicUsername ?? 'Vous';
+
+  Future<void> restoreSession() async {
+    _restoring = true;
+    notifyListeners();
+    try {
+      await _repository.ensureDefaultAdmin();
+      final id = await _repository.readSessionUserId();
+      if (id != null) {
+        _user = await _repository.byId(id);
+        if (_user == null) {
+          await _repository.clearSession();
+        }
+      }
+    } catch (_) {
+      _user = null;
+    } finally {
+      _restoring = false;
+      notifyListeners();
+    }
+  }
 
   Future<bool> login(String email, String password) async {
     _setBusy(true);
@@ -30,6 +57,9 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } on AuthException catch (e) {
       _error = e.message;
+      return false;
+    } catch (_) {
+      _error = 'Connexion impossible.';
       return false;
     } finally {
       _setBusy(false);
@@ -43,6 +73,7 @@ class AuthProvider extends ChangeNotifier {
     required String phone,
     required String password,
     String city = 'Tunis',
+    UserRole role = UserRole.user,
   }) async {
     _setBusy(true);
     try {
@@ -53,11 +84,15 @@ class AuthProvider extends ChangeNotifier {
         phone: phone,
         password: password,
         city: city,
+        role: role,
       );
       _error = null;
       return true;
     } on AuthException catch (e) {
       _error = e.message;
+      return false;
+    } catch (_) {
+      _error = 'Inscription impossible.';
       return false;
     } finally {
       _setBusy(false);
@@ -70,6 +105,12 @@ class AuthProvider extends ChangeNotifier {
       await _repository.sendResetLink(email);
       _error = null;
       return true;
+    } on AuthException catch (e) {
+      _error = e.message;
+      return false;
+    } catch (_) {
+      _error = 'Demande impossible.';
+      return false;
     } finally {
       _setBusy(false);
     }
@@ -80,9 +121,10 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void logout() {
+  Future<void> logout() async {
     _user = null;
     _error = null;
+    await _repository.clearSession();
     notifyListeners();
   }
 

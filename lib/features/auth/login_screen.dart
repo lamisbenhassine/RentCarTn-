@@ -4,9 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/utils/validators.dart';
-import '../../data/mock/mock_users.dart';
 import '../../state/auction_provider.dart';
 import '../../state/auth_provider.dart';
 import '../../widgets/common.dart';
@@ -43,20 +41,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (ok) {
       context.read<AuctionProvider>().setUsername(
-        auth.publicUsername,
-        userId: auth.user?.id,
-      );
+            auth.publicUsername,
+            userId: auth.user?.id,
+          );
       AppSnack.success(context, 'Bienvenue ${auth.user!.firstName} !');
       context.go(Routes.home);
     } else {
       AppSnack.error(context, auth.error ?? 'Connexion impossible.');
     }
-  }
-
-  void _fillDemo() {
-    _emailCtrl.text = MockUsers.demoEmail;
-    _passwordCtrl.text = MockUsers.demoPassword;
-    setState(() {});
   }
 
   @override
@@ -144,8 +136,13 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             const SizedBox(height: 18),
-            _DemoHint(onFill: _fillDemo),
-            const SizedBox(height: 22),
+            const NoticeBox(
+              message:
+                  'Admin : admin@rentcar.tn · admin123\n'
+                  'Créez un compte Utilisateur ou Entreprise pour louer '
+                  'et enchérir.',
+            ),
+            const SizedBox(height: 18),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -164,58 +161,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _DemoHint extends StatelessWidget {
-  const _DemoHint({required this.onFill});
-
-  final VoidCallback onFill;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.navy.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.science_outlined,
-            size: 19,
-            color: AppColors.accent,
-          ),
-          const SizedBox(width: 11),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Compte de démonstration',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  '${MockUsers.demoEmail} · ${MockUsers.demoPassword}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          TextButton(onPressed: onFill, child: const Text('Remplir')),
-        ],
       ),
     );
   }

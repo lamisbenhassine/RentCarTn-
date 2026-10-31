@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/responsive.dart';
 import '../../core/utils/validators.dart';
 import '../../data/mock/mock_cars.dart';
+import '../../data/models/user_role.dart';
 import '../../state/auction_provider.dart';
 import '../../state/auth_provider.dart';
 import '../../widgets/common.dart';
@@ -29,6 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirm = TextEditingController();
 
   String _city = 'Tunis';
+  UserRole _role = UserRole.user;
   bool _obscure = true;
   bool _obscureConfirm = true;
   bool _acceptTerms = false;
@@ -63,6 +65,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       phone: _phone.text,
       password: _password.text,
       city: _city,
+      role: _role,
     );
     if (!mounted) return;
 
@@ -141,6 +144,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   DropdownMenuItem(value: city, child: Text(city)),
               ],
               onChanged: (v) => setState(() => _city = v ?? 'Tunis'),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<UserRole>(
+              initialValue: _role,
+              decoration: const InputDecoration(
+                labelText: 'Type de compte',
+                prefixIcon: Icon(Icons.badge_outlined),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: UserRole.user,
+                  child: Text('Utilisateur'),
+                ),
+                DropdownMenuItem(
+                  value: UserRole.company,
+                  child: Text('Entreprise'),
+                ),
+              ],
+              onChanged: (v) {
+                if (v != null) setState(() => _role = v);
+              },
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -228,9 +252,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 16),
             const NoticeBox(
               message:
-                  "Démonstration : le compte est créé en mémoire locale. "
-                  "Aucune donnée n'est envoyée ni conservée après fermeture "
-                  "de l'application.",
+                  'Utilisateur et Entreprise peuvent louer, enchérir et '
+                  'passer les quiz. L\'admin gère voitures, ventes et examens.',
             ),
             const SizedBox(height: 18),
             Row(

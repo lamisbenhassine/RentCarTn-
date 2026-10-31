@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/learning.dart';
+import '../../state/auth_provider.dart';
 import '../../state/learning_provider.dart';
 import '../../state/load_state.dart';
 import '../../widgets/common.dart';
@@ -54,6 +55,7 @@ class _SignsScreenState extends State<SignsScreen>
   @override
   Widget build(BuildContext context) {
     final learning = context.watch<LearningProvider>();
+    final isAdmin = context.watch<AuthProvider>().isAdmin;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -64,20 +66,23 @@ class _SignsScreenState extends State<SignsScreen>
             ? 'Chargement…'
             : '${learning.signs.length} panneaux expliqués',
         actions: [
-          IconButton(
-            tooltip: 'Gérer les panneaux',
-            onPressed: () => context.push(Routes.manageSigns),
-            icon: const Icon(Icons.edit_note_rounded),
-          ),
+          if (isAdmin)
+            IconButton(
+              tooltip: 'Gérer les panneaux',
+              onPressed: () => context.push(Routes.manageSigns),
+              icon: const Icon(Icons.edit_note_rounded),
+            ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(Routes.signForm()),
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Ajouter'),
-      ),
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push(Routes.signForm()),
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Ajouter'),
+            )
+          : null,
       body: ContentContainer(
         child: Column(
           children: [

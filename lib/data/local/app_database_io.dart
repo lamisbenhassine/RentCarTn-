@@ -48,7 +48,10 @@ class AppDatabase {
         last_name TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
         phone TEXT,
-        password_hash TEXT,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        city TEXT NOT NULL DEFAULT 'Tunis',
+        public_username TEXT NOT NULL,
         member_since TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -209,11 +212,33 @@ class AppDatabase {
       await _createExamsTables(db);
     }
     if (oldVersion < 4) {
-      // Retire les données de démo préremplies ; l'auth reste hors SQLite.
+      // Retire les données de démo préremplies.
       await db.delete(DatabaseConstants.examQuestions);
       await db.delete(DatabaseConstants.exams);
       await db.delete(DatabaseConstants.roadSigns);
       await db.delete(DatabaseConstants.cars);
+    }
+    if (oldVersion < 5) {
+      try {
+        await db.execute(
+          'ALTER TABLE ${DatabaseConstants.users} '
+          "ADD COLUMN city TEXT NOT NULL DEFAULT 'Tunis'",
+        );
+      } catch (_) {}
+      try {
+        await db.execute(
+          'ALTER TABLE ${DatabaseConstants.users} '
+          "ADD COLUMN public_username TEXT NOT NULL DEFAULT 'Utilisateur_TN'",
+        );
+      } catch (_) {}
+    }
+    if (oldVersion < 6) {
+      try {
+        await db.execute(
+          'ALTER TABLE ${DatabaseConstants.users} '
+          "ADD COLUMN role TEXT NOT NULL DEFAULT 'user'",
+        );
+      } catch (_) {}
     }
   }
 

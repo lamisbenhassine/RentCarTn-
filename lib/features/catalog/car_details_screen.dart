@@ -75,9 +75,26 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
     });
   }
 
-  List<RentalExtra> _extrasFor(CarProvider provider) => provider.extras
-      .where((e) => _selectedExtras.contains(e.id))
-      .toList();
+  List<RentalExtra> _offeredExtras(Car car, CarProvider provider) =>
+      provider.extras
+          .where((e) => car.offeredExtraIds.contains(e.id))
+          .toList(growable: false);
+
+  List<RentalExtra> _extrasFor(Car car, CarProvider provider) =>
+      _offeredExtras(car, provider)
+          .where((e) => _selectedExtras.contains(e.id))
+          .toList();
+
+  double _dailyRate(Car car, List<RentalExtra> extras) {
+    final dailyExtras = extras
+        .where((e) => !e.oneShot)
+        .fold(0.0, (s, e) => s + e.pricePerDay);
+    return car.pricePerDay + dailyExtras;
+  }
+
+  double _oneShotExtras(List<RentalExtra> extras) => extras
+      .where((e) => e.oneShot)
+      .fold(0.0, (s, e) => s + e.pricePerDay);
 
   double _total(Car car, List<RentalExtra> extras) {
     final days = _range.days;
@@ -93,7 +110,7 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
       range: _range,
       pickupCity: _pickupCity,
       returnCity: _returnCity,
-      extras: _extrasFor(provider),
+      extras: _extrasFor(car, provider),
     );
 
     if (!result.ok) {
@@ -130,9 +147,10 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
       );
     }
 
-    final extras = _extrasFor(provider);
+    final offeredExtras = _offeredExtras(car, provider);
+    final extras = _extrasFor(car, provider);
     final conflict = car.conflictFor(_range);
-    final bookable = car.available && conflict == null;
+    final bookable = conflict == null;
     final wide = Responsive.isWide(context);
 
     final gallery = _Gallery(
@@ -144,9 +162,13 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
     final details = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _TitleBlock(car: car),
+        _TitleBlock(
+          car: car,
+          dailyRate: _dailyRate(car, extras),
+          oneShotTotal: _oneShotExtras(extras),
+        ),
         const SizedBox(height: 20),
-        _SpecsGrid(car: car),
+        _SpecsGrid(car: car, dailyRate: _dailyRate(car, extras)),
         const SizedBox(height: 22),
         _Section(
           title: 'Description',
@@ -218,40 +240,41 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
             onReturn: (v) => setState(() => _returnCity = v),
           ),
         ),
-        _Section(
-          title: 'Options supplémentaires',
-          child: Column(
-            children: [
-              for (final extra in provider.extras)
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  value: _selectedExtras.contains(extra.id),
-                  onChanged: (v) => setState(() {
-                    if (v ?? false) {
-                      _selectedExtras.add(extra.id);
-                    } else {
-                      _selectedExtras.remove(extra.id);
-                    }
-                  }),
-                  title: Text(
-                    extra.label,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+        if (offeredExtras.isNotEmpty)
+          _Section(
+            title: 'Options supplémentaires',
+            child: Column(
+              children: [
+                for (final extra in offeredExtras)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    value: _selectedExtras.contains(extra.id),
+                    onChanged: (v) => setState(() {
+                      if (v ?? false) {
+                        _selectedExtras.add(extra.id);
+                      } else {
+                        _selectedExtras.remove(extra.id);
+                      }
+                    }),
+                    title: Text(
+                      extra.label,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      extra.oneShot
+                          ? '${Formatters.moneyShort(extra.pricePerDay)} '
+                                '(forfait)'
+                          : '${Formatters.moneyShort(extra.pricePerDay)} / jour',
+                      style: const TextStyle(fontSize: 12),
                     ),
                   ),
-                  subtitle: Text(
-                    extra.oneShot
-                        ? '${Formatters.moneyShort(extra.pricePerDay)} '
-                              '(forfait)'
-                        : '${Formatters.moneyShort(extra.pricePerDay)} / jour',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
         _Section(
           title: 'Conditions de location',
           child: _ConditionsBlock(car: car),
@@ -533,9 +556,15 @@ class _CircleButton extends StatelessWidget {
 // ------------------------------------------------------------------- Blocs
 
 class _TitleBlock extends StatelessWidget {
-  const _TitleBlock({required this.car});
+  const _TitleBlock({
+    required this.car,
+    required this.dailyRate,
+    this.oneShotTotal = 0,
+  });
 
   final Car car;
+  final double dailyRate;
+  final double oneShotTotal;
 
   @override
   Widget build(BuildContext context) {
@@ -543,6 +572,18 @@ class _TitleBlock extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         StatusBadge.availability(car.available),
+        if (!car.available && car.prochaineDisponibilite != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Disponible à partir du '
+            '${Formatters.date(car.prochaineDisponibilite!)}',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.danger,
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         Text(car.fullName, style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 6),
@@ -576,7 +617,7 @@ class _TitleBlock extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              Formatters.moneyShort(car.pricePerDay),
+              Formatters.moneyShort(dailyRate),
               style: const TextStyle(
                 fontSize: 27,
                 fontWeight: FontWeight.w900,
@@ -595,6 +636,18 @@ class _TitleBlock extends StatelessWidget {
                 ),
               ),
             ),
+            if (oneShotTotal > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 5, left: 8),
+                child: Text(
+                  '+ ${Formatters.moneyShort(oneShotTotal)} forfait',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
           ],
         ),
       ],
@@ -603,9 +656,10 @@ class _TitleBlock extends StatelessWidget {
 }
 
 class _SpecsGrid extends StatelessWidget {
-  const _SpecsGrid({required this.car});
+  const _SpecsGrid({required this.car, required this.dailyRate});
 
   final Car car;
+  final double dailyRate;
 
   @override
   Widget build(BuildContext context) {
@@ -624,7 +678,7 @@ class _SpecsGrid extends StatelessWidget {
       (
         Icons.payments_rounded,
         'Prix / jour',
-        Formatters.moneyShort(car.pricePerDay),
+        Formatters.moneyShort(dailyRate),
       ),
     ];
 
@@ -782,16 +836,50 @@ class _AvailabilityBlock extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        if (!car.available)
-          const NoticeBox(
+        if (!car.available) ...[
+          NoticeBox(
             icon: Icons.do_not_disturb_on_rounded,
             color: AppColors.danger,
-            title: 'Véhicule indisponible',
-            message:
-                "Ce véhicule est actuellement retiré du parc (maintenance). "
-                "La réservation est désactivée.",
-          )
-        else if (conflict != null)
+            title: 'Véhicule loué (indisponible)',
+            message: car.prochaineDisponibilite == null
+                ? 'Ce véhicule est actuellement loué.'
+                : 'Loué actuellement. Disponible à partir du '
+                    '${Formatters.date(car.prochaineDisponibilite!)}.',
+          ),
+          if (car.prochaineDisponibilite != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.infoSoft,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.event_available_rounded,
+                    color: AppColors.info,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Prochaine disponibilité : '
+                      '${Formatters.date(car.prochaineDisponibilite!)}',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ] else if (conflict != null)
           NoticeBox(
             icon: Icons.event_busy_rounded,
             color: AppColors.danger,
@@ -807,7 +895,7 @@ class _AvailabilityBlock extends StatelessWidget {
             color: AppColors.success,
             title: 'Disponible sur ces dates',
             message:
-                "Le véhicule peut être réservé pour la période sélectionnée.",
+                'Le véhicule peut être réservé pour la période sélectionnée.',
           ),
         if (car.bookedRanges.isNotEmpty) ...[
           const SizedBox(height: 14),

@@ -104,6 +104,9 @@ GoRouter buildRouter(AuthProvider auth) {
     initialLocation: Routes.onboarding,
     refreshListenable: auth,
     redirect: (context, state) {
+      // Attendre la restauration de session (sqflite / prefs).
+      if (auth.restoring) return null;
+
       final loggedIn = auth.isLoggedIn;
       final path = state.matchedLocation;
       const publicPaths = {
@@ -116,6 +119,18 @@ GoRouter buildRouter(AuthProvider auth) {
 
       if (!loggedIn && !isPublic) return Routes.onboarding;
       if (loggedIn && isPublic) return Routes.home;
+
+      // Routes réservées à l'administrateur.
+      final needsAdmin = path == Routes.manageCars ||
+          path == Routes.fleet ||
+          path == Routes.manageSigns ||
+          path == Routes.manageExams ||
+          path.startsWith('/code-de-la-route/panneaux/nouveau') ||
+          path.contains('/panneaux/') && path.endsWith('/modifier') ||
+          path.startsWith('/code-de-la-route/examens/nouveau') ||
+          path.contains('/examens/') && path.endsWith('/modifier');
+      if (needsAdmin && !auth.isAdmin) return Routes.home;
+
       return null;
     },
     routes: [

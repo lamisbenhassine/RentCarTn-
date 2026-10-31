@@ -205,10 +205,12 @@ class _RailShortcuts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = context.watch<AuthProvider>().isAdmin;
     final shortcuts = <(IconData, String, String)>[
       (Icons.event_note_rounded, 'Réservations', Routes.reservations),
       (Icons.emoji_events_rounded, 'Mes enchères', Routes.myAuctions),
-      (Icons.inventory_2_rounded, 'Gestion flotte', Routes.fleet),
+      if (isAdmin)
+        (Icons.inventory_2_rounded, 'Gestion flotte', Routes.fleet),
     ];
 
     return Column(
