@@ -6,10 +6,12 @@ abstract final class DatabaseConstants {
   static const String fileName = 'rentcar_tunisia.db';
 
   /// Version 4 : purge des seeds démo (cars / panneaux / examens).
-  /// Version 5 : colonnes de profil complètes sur la table users.
-  /// Version 6 : users.email_verified (vérification de l'e-mail).
-  /// Version 7 : table complaints (module Réclamations).
-  static const int version = 7;
+  /// Versions 5 à 7 (équipe) : users.city, public_username, role, puis
+  /// réparation du schéma users (auth APK).
+  /// Version 8 : colonnes de profil (module User : position, permis,
+  /// score de confiance, email_verified…).
+  /// Version 9 : table complaints (module Réclamations).
+  static const int version = 9;
 
   static const String users = 'users';
   static const String cars = 'cars';

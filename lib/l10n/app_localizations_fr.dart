@@ -2047,6 +2047,15 @@ class AppLocalizationsFr extends AppLocalizations {
       'Assistant IA temporairement indisponible (quota atteint), réessayez plus tard.';
 
   @override
+  String get registerAccountType => 'Type de compte';
+
+  @override
+  String get registerRoleUser => 'Utilisateur';
+
+  @override
+  String get registerRoleCompany => 'Entreprise';
+
+  @override
   String get themeTitle => 'Thème';
 
   @override

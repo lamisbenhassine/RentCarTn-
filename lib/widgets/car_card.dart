@@ -16,12 +16,16 @@ class CarCard extends StatelessWidget {
     required this.onTap,
     this.onReserve,
     this.showAvailability = true,
+    this.selected = false,
+    this.onSelectionChanged,
   });
 
   final Car car;
   final VoidCallback onTap;
   final VoidCallback? onReserve;
   final bool showAvailability;
+  final bool selected;
+  final ValueChanged<bool>? onSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +36,10 @@ class CarCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surfaceAlt,
           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(
+            color: selected ? AppColors.accent : AppColors.border,
+            width: selected ? 2 : 1,
+          ),
           boxShadow: AppTheme.softShadow,
         ),
         clipBehavior: Clip.antiAlias,
@@ -40,9 +47,14 @@ class CarCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _Header(car: car, showAvailability: showAvailability),
+            _Header(
+              car: car,
+              showAvailability: showAvailability,
+              selected: selected,
+              onSelectionChanged: onSelectionChanged,
+            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -52,26 +64,52 @@ class CarCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 16.5,
+                      fontSize: 15.5,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.3,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
-                    '${car.year} · ${car.city}',
+                    car.companyOnly
+                        ? '${car.year} · ${car.city} · Entreprise'
+                        : '${car.year} · ${car.city}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 12,
                       color: AppColors.textMuted,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  if (car.companyOnly) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.navy.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.navy.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: const Text(
+                        'Flotte entreprise',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.navy,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
                   Wrap(
-                    spacing: 14,
-                    runSpacing: 8,
+                    spacing: 10,
+                    runSpacing: 6,
                     children: [
                       SpecChip(
                         icon: Icons.event_seat_rounded,
@@ -91,11 +129,11 @@ class CarCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
                   const Divider(height: 1),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
                         child: Row(
@@ -105,7 +143,7 @@ class CarCard extends StatelessWidget {
                             Text(
                               Formatters.moneyShort(car.pricePerDay),
                               style: const TextStyle(
-                                fontSize: 18,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: -0.5,
                                 color: AppColors.accent,
@@ -115,7 +153,7 @@ class CarCard extends StatelessWidget {
                             const Text(
                               '/ jour',
                               style: TextStyle(
-                                fontSize: 11.5,
+                                fontSize: 11,
                                 color: AppColors.textMuted,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -124,12 +162,12 @@ class CarCard extends StatelessWidget {
                         ),
                       ),
                       SizedBox(
-                        height: 40,
+                        height: 36,
                         child: ElevatedButton(
                           onPressed: onReserve ?? onTap,
                           style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(0, 40),
-                            padding: const EdgeInsets.symmetric(horizontal: 18),
+                            minimumSize: const Size(0, 36),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
                             backgroundColor: car.available
                                 ? AppColors.navy
                                 : AppColors.border,
@@ -137,7 +175,7 @@ class CarCard extends StatelessWidget {
                                 ? Colors.white
                                 : AppColors.textMuted,
                             textStyle: const TextStyle(
-                              fontSize: 13.5,
+                              fontSize: 13,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -157,15 +195,22 @@ class CarCard extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.car, required this.showAvailability});
+  const _Header({
+    required this.car,
+    required this.showAvailability,
+    this.selected = false,
+    this.onSelectionChanged,
+  });
 
   final Car car;
   final bool showAvailability;
+  final bool selected;
+  final ValueChanged<bool>? onSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 168,
+      height: 150,
       width: double.infinity,
       child: Stack(
         fit: StackFit.expand,
@@ -179,25 +224,60 @@ class _Header extends StatelessWidget {
               left: 12,
               child: StatusBadge.availability(car.available, dense: true),
             ),
-          Positioned(
-            top: 10,
-            right: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppColors.navy.withValues(alpha: 0.72),
-                borderRadius: BorderRadius.circular(100),
+          if (onSelectionChanged != null)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => onSelectionChanged!(!selected),
+                  customBorder: const CircleBorder(),
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.accent
+                          : Colors.white.withValues(alpha: 0.92),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: selected ? AppColors.accent : AppColors.border,
+                        width: 1.5,
+                      ),
+                      boxShadow: AppTheme.softShadow,
+                    ),
+                    child: Icon(
+                      selected
+                          ? Icons.check_rounded
+                          : Icons.check_box_outline_blank_rounded,
+                      size: 18,
+                      color: selected ? Colors.white : AppColors.navy,
+                    ),
+                  ),
+                ),
               ),
-              child: Text(
-                car.brand,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+            )
+          else
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.navy.withValues(alpha: 0.72),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text(
+                  car.brand,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

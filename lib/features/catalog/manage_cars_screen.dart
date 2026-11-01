@@ -7,12 +7,13 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/car.dart';
+import '../../state/auth_provider.dart';
 import '../../state/car_provider.dart';
 import '../../widgets/car_image.dart';
 import '../../widgets/common.dart';
 import '../shell/main_shell.dart';
 
-/// Liste CRUD de tous les véhicules (Create / Read / Update / Delete).
+/// Liste du parc : Admin = CRUD ; User / Company = consultation seule.
 class ManageCarsScreen extends StatefulWidget {
   const ManageCarsScreen({super.key});
 
@@ -69,21 +70,27 @@ class _ManageCarsScreenState extends State<ManageCarsScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<CarProvider>();
     final cars = provider.allCars;
+    final isAdmin = context.watch<AuthProvider>().isAdmin;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: appScreenBar(
         context,
-        title: 'Gérer les véhicules',
-        subtitle: 'CRUD · ${cars.length} entrées',
+        title: isAdmin ? 'Gérer les véhicules' : 'Parc véhicules',
+        subtitle: isAdmin
+            ? 'CRUD · ${cars.length} entrées'
+            : 'Consultation · ${cars.length} véhicule'
+                '${cars.length > 1 ? 's' : ''}',
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(Routes.carForm()),
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nouveau véhicule'),
-      ),
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push(Routes.carForm()),
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Nouveau véhicule'),
+            )
+          : null,
       body: ContentContainer(
         child: Column(
           children: [
@@ -104,12 +111,16 @@ class _ManageCarsScreenState extends State<ManageCarsScreen> {
                 ),
                 8,
               ),
-              child: const NoticeBox(
-                icon: Icons.storage_outlined,
-                title: 'Persistance locale',
-                message:
-                    'APK / téléphone : sqflite. Navigateur (Chrome) : '
-                    'shared_preferences — les CRUD survivent au refresh (F5).',
+              child: NoticeBox(
+                icon: isAdmin
+                    ? Icons.storage_outlined
+                    : Icons.visibility_outlined,
+                title: isAdmin ? 'Persistance locale' : 'Lecture seule',
+                message: isAdmin
+                    ? 'APK / téléphone : sqflite. Navigateur (Chrome) : '
+                        'shared_preferences — les CRUD survivent au refresh (F5).'
+                    : 'Vous pouvez consulter le parc. Seul un administrateur '
+                        'peut ajouter, modifier ou supprimer un véhicule.',
               ),
             ),
             Expanded(
@@ -117,9 +128,13 @@ class _ManageCarsScreenState extends State<ManageCarsScreen> {
                   ? EmptyState(
                       icon: Icons.directions_car_rounded,
                       title: 'Aucun véhicule',
-                      message: 'Ajoutez votre premier véhicule à louer.',
-                      actionLabel: 'Ajouter',
-                      onAction: () => context.push(Routes.carForm()),
+                      message: isAdmin
+                          ? 'Ajoutez votre premier véhicule à louer.'
+                          : 'Le parc est vide pour le moment.',
+                      actionLabel: isAdmin ? 'Ajouter' : null,
+                      onAction: isAdmin
+                          ? () => context.push(Routes.carForm())
+                          : null,
                     )
                   : ListView.separated(
                       padding: EdgeInsets.fromLTRB(
@@ -143,6 +158,7 @@ class _ManageCarsScreenState extends State<ManageCarsScreen> {
                       itemBuilder: (_, i) {
                         final car = cars[i];
                         return AppCard(
+                          onTap: () => context.push(Routes.car(car.id)),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 10,
@@ -172,7 +188,8 @@ class _ManageCarsScreenState extends State<ManageCarsScreen> {
                                     const SizedBox(height: 3),
                                     Text(
                                       '${car.year} · ${car.seats} places · '
-                                      '${car.city}',
+                                      '${car.city}'
+                                      '${car.companyOnly ? ' · Entreprise' : ''}',
                                       style: const TextStyle(
                                         fontSize: 12.5,
                                         color: AppColors.textMuted,
@@ -190,20 +207,27 @@ class _ManageCarsScreenState extends State<ManageCarsScreen> {
                                   ],
                                 ),
                               ),
-                              IconButton(
-                                tooltip: 'Modifier',
-                                onPressed: () =>
-                                    context.push(Routes.carForm(id: car.id)),
-                                icon: const Icon(Icons.edit_outlined),
-                              ),
-                              IconButton(
-                                tooltip: 'Supprimer',
-                                onPressed: () => _confirmDelete(car),
-                                icon: const Icon(
-                                  Icons.delete_outline_rounded,
-                                  color: AppColors.danger,
+                              if (isAdmin) ...[
+                                IconButton(
+                                  tooltip: 'Modifier',
+                                  onPressed: () => context.push(
+                                    Routes.carForm(id: car.id),
+                                  ),
+                                  icon: const Icon(Icons.edit_outlined),
                                 ),
-                              ),
+                                IconButton(
+                                  tooltip: 'Supprimer',
+                                  onPressed: () => _confirmDelete(car),
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: AppColors.danger,
+                                  ),
+                                ),
+                              ] else
+                                const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: AppColors.textMuted,
+                                ),
                             ],
                           ),
                         );

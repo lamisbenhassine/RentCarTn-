@@ -1,8 +1,9 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Petites données de session (shared_preferences, mobile + web) :
-/// - l'id du compte mémorisé par « Se souvenir de moi » ;
-/// - la fin du blocage après trop d'échecs de connexion.
+/// Petites données locales du module User (shared_preferences) :
+/// - la fin du blocage après trop d'échecs de connexion ;
+/// - le nettoyage des préférences d'un compte supprimé.
+/// La session elle-même est portée par AuthRepository (équipe).
 class SessionStorage {
   const SessionStorage();
 
@@ -11,12 +12,12 @@ class SessionStorage {
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
-  Future<String?> readUserId() async => (await _prefs).getString(_kUserId);
+  /// Ancien « Se souvenir de moi » (branche module-user), repris une fois
+  /// dans la session de l'équipe par AuthProvider.restoreSession.
+  Future<String?> readLegacyUserId() async =>
+      (await _prefs).getString(_kUserId);
 
-  Future<void> saveUserId(String userId) async =>
-      (await _prefs).setString(_kUserId, userId);
-
-  Future<void> clearUserId() async => (await _prefs).remove(_kUserId);
+  Future<void> clearLegacyUserId() async => (await _prefs).remove(_kUserId);
 
   /// Compte supprimé : efface la session « Se souvenir de moi », le
   /// blocage de connexion et toute préférence dont la clé contient l'id du

@@ -10,6 +10,7 @@ import '../../core/utils/responsive.dart';
 import '../../data/models/car.dart';
 import '../../data/models/cart_item.dart';
 import '../../data/models/date_range.dart';
+import '../../state/auth_provider.dart';
 import '../../state/cart_provider.dart';
 import '../../widgets/car_image.dart';
 import '../../widgets/common.dart';
@@ -20,10 +21,11 @@ class CartScreen extends StatelessWidget {
 
   Future<void> _changeDates(BuildContext context, CartItem item) async {
     final now = DateTime.now();
+    final isCompany = context.read<AuthProvider>().isCompany;
     final result = await showDateRangePicker(
       context: context,
       firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 365)),
+      lastDate: now.add(Duration(days: isCompany ? 365 * 5 : 365)),
       initialDateRange: DateTimeRange(
         start: item.range.start,
         end: item.range.end,
@@ -63,13 +65,14 @@ class CartScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
+    final isCompany = context.watch<AuthProvider>().isCompany;
     final wide = Responsive.isWide(context);
 
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: appScreenBar(
         context,
-        title: 'Mon panier',
+        title: isCompany ? 'Panier flotte entreprise' : 'Mon panier',
         subtitle: cart.isEmpty
             ? 'Aucun véhicule sélectionné'
             : '${cart.count} véhicule${cart.count > 1 ? 's' : ''} · '
@@ -206,13 +209,22 @@ class _ItemsList extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 4),
-        const NoticeBox(
-          icon: Icons.verified_user_outlined,
-          message:
-              "Les disponibilités sont revérifiées avant le paiement. Un "
-              "véhicule déjà loué sur la période sélectionnée ne peut pas "
-              "être réservé.",
-        ),
+        if (context.watch<AuthProvider>().isCompany)
+          const NoticeBox(
+            icon: Icons.business_rounded,
+            title: 'Flotte entreprise',
+            message:
+                'Ajoutez plusieurs véhicules pour votre société. '
+                'Durées longues (jusqu\'à 3 ans) supportées.',
+          )
+        else
+          const NoticeBox(
+            icon: Icons.verified_user_outlined,
+            message:
+                "Les disponibilités sont revérifiées avant le paiement. Un "
+                "véhicule déjà loué sur la période sélectionnée ne peut pas "
+                "être réservé.",
+          ),
         if (wide) const SizedBox(height: 10),
       ],
     );

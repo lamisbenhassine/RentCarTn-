@@ -7,6 +7,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/learning.dart';
+import '../../data/services/tts_service.dart';
+import '../../state/auth_provider.dart';
 import '../../state/learning_provider.dart';
 import '../../state/load_state.dart';
 import '../../widgets/common.dart';
@@ -34,6 +36,8 @@ class _SignsScreenState extends State<SignsScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LearningProvider>().loadSigns();
       _markStudied();
+      // Précharge les voix TTS (nécessaire surtout sur Chrome / Windows).
+      TtsService.instance.ensureReady();
     });
   }
 
@@ -48,12 +52,14 @@ class _SignsScreenState extends State<SignsScreen>
   void dispose() {
     _tabs.removeListener(_markStudied);
     _tabs.dispose();
+    TtsService.instance.stop();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final learning = context.watch<LearningProvider>();
+    final isAdmin = context.watch<AuthProvider>().isAdmin;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -64,20 +70,23 @@ class _SignsScreenState extends State<SignsScreen>
             ? 'Chargement…'
             : '${learning.signs.length} panneaux expliqués',
         actions: [
-          IconButton(
-            tooltip: 'Gérer les panneaux',
-            onPressed: () => context.push(Routes.manageSigns),
-            icon: const Icon(Icons.edit_note_rounded),
-          ),
+          if (isAdmin)
+            IconButton(
+              tooltip: 'Gérer les panneaux',
+              onPressed: () => context.push(Routes.manageSigns),
+              icon: const Icon(Icons.edit_note_rounded),
+            ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(Routes.signForm()),
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Ajouter'),
-      ),
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push(Routes.signForm()),
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Ajouter'),
+            )
+          : null,
       body: ContentContainer(
         child: Column(
           children: [
@@ -128,18 +137,19 @@ class _SignList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final signs = context.watch<LearningProvider>().signsByCategory(category);
+    final isAdmin = context.watch<AuthProvider>().isAdmin;
 
     if (signs.isEmpty) {
       return EmptyState(
         icon: Icons.traffic_rounded,
         title: 'Aucun panneau « ${category.shortLabel} »',
-        message:
-            'Ajoutez votre propre contenu pour cette catégorie '
-            '(Create / Update / Delete).',
-        actionLabel: 'Ajouter un panneau',
-        onAction: () => context.push(
-          Routes.signForm(category: category),
-        ),
+        message: isAdmin
+            ? 'Ajoutez votre propre contenu pour cette catégorie.'
+            : 'Aucun panneau dans cette catégorie pour le moment.',
+        actionLabel: isAdmin ? 'Ajouter un panneau' : null,
+        onAction: isAdmin
+            ? () => context.push(Routes.signForm(category: category))
+            : null,
       );
     }
 
@@ -225,7 +235,35 @@ class _SignCard extends StatelessWidget {
 
   final RoadSign sign;
 
+  String get _speechText {
+    final parts = <String>[
+      'Panneau ${sign.category.shortLabel}.',
+      sign.name.trim(),
+      if (sign.meaning.trim().isNotEmpty) 'Signification : ${sign.meaning.trim()}.',
+      if (sign.advice.trim().isNotEmpty) 'Conseil : ${sign.advice.trim()}.',
+    ];
+    return parts.join(' ');
+  }
+
+  Future<void> _speak(BuildContext context) async {
+    final tts = TtsService.instance;
+    try {
+      await tts.speak(id: sign.id, text: _speechText);
+      if (!context.mounted) return;
+      if (tts.lastError != null && tts.lastError!.trim().isNotEmpty) {
+        AppSnack.error(context, tts.lastError!);
+      }
+    } catch (_) {
+      if (!context.mounted) return;
+      AppSnack.error(
+        context,
+        tts.lastError ?? 'Lecture vocale impossible sur cet appareil.',
+      );
+    }
+  }
+
   Future<void> _confirmDelete(BuildContext context) async {
+    if (!context.read<AuthProvider>().isAdmin) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -262,91 +300,131 @@ class _SignCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final isAdmin = context.watch<AuthProvider>().isAdmin;
+
+    return ListenableBuilder(
+      listenable: TtsService.instance,
+      builder: (context, _) {
+        final speaking = TtsService.instance.isSpeakingId(sign.id);
+
+        return AppCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              RoadSignWidget(sign: sign, size: 72),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      sign.name,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        height: 1.25,
-                        color: AppColors.textPrimary,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RoadSignWidget(sign: sign, size: 72),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          sign.name,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            height: 1.25,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          sign.meaning,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            height: 1.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: speaking ? 'Arrêter' : 'Écouter le panneau',
+                    onPressed: () => _speak(context),
+                    icon: Icon(
+                      speaking
+                          ? Icons.stop_circle_outlined
+                          : Icons.volume_up_rounded,
+                      size: 22,
+                      color: speaking ? AppColors.accent : AppColors.navy,
+                    ),
+                  ),
+                  if (isAdmin) ...[
+                    IconButton(
+                      tooltip: 'Modifier',
+                      onPressed: () =>
+                          context.push(Routes.signForm(id: sign.id)),
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                    ),
+                    IconButton(
+                      tooltip: 'Supprimer',
+                      onPressed: () => _confirmDelete(context),
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 20,
+                        color: AppColors.danger,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      sign.meaning,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        height: 1.5,
-                        color: AppColors.textSecondary,
+                  ],
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.lightbulb_outline_rounded,
+                      size: 16,
+                      color: AppColors.warning,
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        sign.advice,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          height: 1.45,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: 'Modifier',
-                onPressed: () =>
-                    context.push(Routes.signForm(id: sign.id)),
-                icon: const Icon(Icons.edit_outlined, size: 20),
-              ),
-              IconButton(
-                tooltip: 'Supprimer',
-                onPressed: () => _confirmDelete(context),
-                icon: const Icon(
-                  Icons.delete_outline_rounded,
-                  size: 20,
-                  color: AppColors.danger,
-                ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _TrustTag(trust: sign.trust)),
+                  TextButton.icon(
+                    onPressed: () => _speak(context),
+                    icon: Icon(
+                      speaking
+                          ? Icons.stop_rounded
+                          : Icons.record_voice_over_rounded,
+                      size: 18,
+                    ),
+                    label: Text(speaking ? 'Arrêter' : 'Écouter'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.accent,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(11),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.lightbulb_outline_rounded,
-                  size: 16,
-                  color: AppColors.warning,
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    sign.advice,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      height: 1.45,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          _TrustTag(trust: sign.trust),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -11,6 +11,7 @@ import '../../core/utils/validators.dart';
 import '../../data/mock/mock_cars.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../l10n/l10n.dart';
+import '../../data/models/user_role.dart';
 import '../../state/auction_provider.dart';
 import '../../state/auth_provider.dart';
 import '../../widgets/common.dart';
@@ -56,6 +57,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   LocationException? _locError;
   bool _manualCity = false;
   String _city = 'Tunis';
+  UserRole _role = UserRole.user;
 
   // Étape 3 — sécurité.
   bool _obscure = true;
@@ -175,6 +177,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       address: useGps ? (_detected?.address ?? '') : '',
       latitude: useGps ? _detected?.latitude : null,
       longitude: useGps ? _detected?.longitude : null,
+      role: _role,
     );
     if (!mounted) return;
 
@@ -361,6 +364,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
             validator: Validators.phone,
             onChanged: (_) {
               if (_phoneTaken) setState(() => _phoneTaken = false);
+            },
+          ),
+          const SizedBox(height: 16),
+          // Équipe : type de compte (l'admin n'est jamais créé ici).
+          DropdownButtonFormField<UserRole>(
+            initialValue: _role,
+            decoration: InputDecoration(
+              labelText: l.registerAccountType,
+              prefixIcon: const Icon(Icons.badge_outlined),
+            ),
+            items: [
+              DropdownMenuItem(
+                value: UserRole.user,
+                child: Text(l.registerRoleUser),
+              ),
+              DropdownMenuItem(
+                value: UserRole.company,
+                child: Text(l.registerRoleCompany),
+              ),
+            ],
+            onChanged: (v) {
+              if (v != null) setState(() => _role = v);
             },
           ),
         ],

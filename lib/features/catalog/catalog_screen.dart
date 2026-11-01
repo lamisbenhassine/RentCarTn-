@@ -8,6 +8,9 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/car.dart';
+import '../../data/services/devis_pdf_service.dart';
+import '../../state/auction_provider.dart';
+import '../../state/auth_provider.dart';
 import '../../state/car_provider.dart';
 import '../../state/cart_provider.dart';
 import '../../state/load_state.dart';
@@ -28,6 +31,8 @@ class CatalogScreen extends StatefulWidget {
 
 class _CatalogScreenState extends State<CatalogScreen> {
   final _searchCtrl = TextEditingController();
+  final Set<String> _selectedIds = {};
+  bool _exportingDevis = false;
 
   @override
   void initState() {
@@ -117,11 +122,51 @@ class _CatalogScreenState extends State<CatalogScreen> {
     );
   }
 
+  void _toggleSelect(String id, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedIds.add(id);
+      } else {
+        _selectedIds.remove(id);
+      }
+    });
+  }
+
+  Future<void> _exportDevis(List<Car> cars) async {
+    final selected = cars.where((c) => _selectedIds.contains(c.id)).toList();
+    if (selected.isEmpty) {
+      AppSnack.info(context, 'Sélectionnez au moins un véhicule.');
+      return;
+    }
+    final client = context.read<AuthProvider>().user;
+    setState(() => _exportingDevis = true);
+    try {
+      await DevisPdfService().exportQuote(selected, client: client);
+      if (!mounted) return;
+      AppSnack.success(context, 'Devis PDF prêt à partager.');
+    } catch (_) {
+      if (!mounted) return;
+      AppSnack.error(context, 'Export du devis impossible.');
+    } finally {
+      if (mounted) setState(() => _exportingDevis = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<CarProvider>();
-    final cars = provider.filteredCars;
+    final auth = context.watch<AuthProvider>();
+    final busyIds = context.watch<AuctionProvider>().carIdsInActiveAuction;
+    final cars = provider.filteredCars
+        .where((c) => !busyIds.contains(c.id))
+        .where((c) => c.isVisibleFor(auth.role))
+        .toList(growable: false);
+    final visibleIds = {for (final c in cars) c.id};
+    final selectedCount =
+        _selectedIds.where(visibleIds.contains).length;
     final wide = Responsive.isWide(context);
+    final isAdmin = auth.isAdmin;
+    final isCompany = auth.isCompany;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -134,9 +179,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
               title: const Text('Location de véhicules'),
               actions: [
                 IconButton(
-                  tooltip: 'Gérer les véhicules',
+                  tooltip: isAdmin
+                      ? 'Gérer les véhicules'
+                      : 'Voir le parc',
                   onPressed: () => context.push(Routes.manageCars),
-                  icon: const Icon(Icons.edit_note_rounded),
+                  icon: Icon(
+                    isAdmin
+                        ? Icons.edit_note_rounded
+                        : Icons.directions_car_outlined,
+                  ),
                 ),
                 CartButton(count: context.watch<CartProvider>().count),
                 const SizedBox(width: 6),
@@ -168,8 +219,13 @@ class _CatalogScreenState extends State<CatalogScreen> {
                           ),
                           OutlinedButton.icon(
                             onPressed: () => context.push(Routes.manageCars),
-                            icon: const Icon(Icons.edit_note_rounded, size: 18),
-                            label: const Text('Gérer'),
+                            icon: Icon(
+                              isAdmin
+                                  ? Icons.edit_note_rounded
+                                  : Icons.directions_car_outlined,
+                              size: 18,
+                            ),
+                            label: Text(isAdmin ? 'Gérer' : 'Parc'),
                           ),
                           const SizedBox(width: 10),
                           CartButton(
@@ -186,6 +242,26 @@ class _CatalogScreenState extends State<CatalogScreen> {
                       onSort: _openSort,
                       filterCount: provider.activeFilterCount,
                     ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: () => context.push(Routes.recommendQuiz),
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                        label: const Text('IA : quelle voiture pour moi ?'),
+                      ),
+                    ),
+                    if (isCompany) ...[
+                      const SizedBox(height: 12),
+                      const NoticeBox(
+                        icon: Icons.business_rounded,
+                        title: 'Espace entreprise',
+                        message:
+                            'Location longue durée (jusqu\'à 3 ans) et '
+                            'plusieurs véhicules pour votre flotte. '
+                            'Ajoutez autant de voitures que nécessaire au panier.',
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     _CategoryChips(provider: provider),
                     const SizedBox(height: 10),
@@ -207,6 +283,54 @@ class _CatalogScreenState extends State<CatalogScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: selectedCount == 0
+          ? null
+          : BottomActionBar(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$selectedCount véhicule'
+                          '${selectedCount > 1 ? 's' : ''} sélectionné'
+                          '${selectedCount > 1 ? 's' : ''}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => setState(_selectedIds.clear),
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text('Tout désélectionner'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed:
+                        _exportingDevis ? null : () => _exportDevis(cars),
+                    icon: _exportingDevis
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                    label: const Text('Devis'),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -258,10 +382,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
           crossAxisSpacing: 16,
           mainAxisExtent: 352,
         ),
-        itemBuilder: (_, i) => CarCard(
-          car: cars[i],
-          onTap: () => context.push(Routes.car(cars[i].id)),
-        ),
+        itemBuilder: (_, i) {
+          final car = cars[i];
+          return CarCard(
+            car: car,
+            selected: _selectedIds.contains(car.id),
+            onSelectionChanged: (v) => _toggleSelect(car.id, v),
+            onTap: () => context.push(Routes.car(car.id)),
+          );
+        },
       ),
     );
   }

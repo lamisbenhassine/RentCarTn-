@@ -2034,6 +2034,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'AI assistant temporarily unavailable (quota reached), please try again later.';
 
   @override
+  String get registerAccountType => 'Account type';
+
+  @override
+  String get registerRoleUser => 'Individual';
+
+  @override
+  String get registerRoleCompany => 'Company';
+
+  @override
   String get themeTitle => 'Theme';
 
   @override

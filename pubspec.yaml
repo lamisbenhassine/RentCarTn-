@@ -49,6 +49,13 @@ dependencies:
   url_launcher: ^6.3.3
   speech_to_text: ^7.5.0
 
+  # Équipe : PDF (contrats, reçus), synthèse vocale
+  pdf: ^3.13.1
+  printing: ^5.15.1
+  flutter_tts: ^4.2.5
+  web: ^1.1.2
+  shared_preferences_android: 2.5.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -59,3 +66,6 @@ flutter:
   uses-material-design: true
   # Traductions FR / EN / AR (gen-l10n, voir l10n.yaml et lib/l10n/*.arb)
   generate: true
+  assets:
+    - assets/fonts/NotoSans-Regular.ttf
+    - assets/fonts/NotoSans-Bold.ttf

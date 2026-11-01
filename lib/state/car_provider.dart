@@ -120,6 +120,38 @@ class CarProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Après une réservation confirmée : bloque les dates + badge rouge si
+  /// le véhicule est loué aujourd'hui.
+  Future<void> applyBooking(String carId, DateRange range) async {
+    final car = carById(carId);
+    if (car == null) return;
+    final ranges = [...car.bookedRanges, range];
+    final updated = car.copyWith(
+      bookedRanges: ranges,
+      available: !_hasActiveBooking(ranges),
+    );
+    await update(updated);
+  }
+
+  /// Après annulation : libère les dates et remet le badge vert si libre.
+  Future<void> releaseBooking(String carId, DateRange range) async {
+    final car = carById(carId);
+    if (car == null) return;
+    final ranges = car.bookedRanges.where((r) => r != range).toList();
+    final updated = car.copyWith(
+      bookedRanges: ranges,
+      available: !_hasActiveBooking(ranges),
+    );
+    await update(updated);
+  }
+
+  /// Réservation en cours ou à venir (pas encore terminée).
+  bool _hasActiveBooking(List<DateRange> ranges) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return ranges.any((r) => !r.end.isBefore(today));
+  }
+
   Car? carById(String id) {
     for (final car in _cars) {
       if (car.id == id) return car;

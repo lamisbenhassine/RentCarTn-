@@ -2041,6 +2041,15 @@ class AppLocalizationsAr extends AppLocalizations {
       'المساعد الذكي غير متاح مؤقتًا (تم بلوغ الحصة)، أعد المحاولة لاحقًا.';
 
   @override
+  String get registerAccountType => 'نوع الحساب';
+
+  @override
+  String get registerRoleUser => 'مستخدم';
+
+  @override
+  String get registerRoleCompany => 'شركة';
+
+  @override
   String get themeTitle => 'المظهر';
 
   @override

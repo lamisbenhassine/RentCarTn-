@@ -36,7 +36,45 @@ class AppDatabase {
       },
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
+      onOpen: (db) async {
+        // Garantit le schéma auth même si une ancienne version était incomplète.
+        await _ensureUsersSchema(db);
+      },
     );
+  }
+
+  /// Crée / complète la table users (nécessaire au login APK).
+  Future<void> _ensureUsersSchema(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${DatabaseConstants.users} (
+        id TEXT PRIMARY KEY NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        phone TEXT,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        city TEXT NOT NULL DEFAULT 'Tunis',
+        public_username TEXT NOT NULL,
+        member_since TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
+    // Colonnes auth de l'équipe (ajoutées seulement si absentes).
+    await _addMissingColumns(db, DatabaseConstants.users, const [
+      "password_hash TEXT NOT NULL DEFAULT ''",
+      "role TEXT NOT NULL DEFAULT 'user'",
+      "city TEXT NOT NULL DEFAULT 'Tunis'",
+      "public_username TEXT NOT NULL DEFAULT 'Utilisateur_TN'",
+      'phone TEXT',
+      "member_since TEXT NOT NULL DEFAULT ''",
+      "created_at TEXT NOT NULL DEFAULT ''",
+      "updated_at TEXT NOT NULL DEFAULT ''",
+    ]);
+    // Colonnes du module User (position, permis, score, e-mail vérifié…).
+    await _addUserProfileColumns(db);
   }
 
   /// Schéma initial (version 1) — tables vides, prêtes pour les DAO.
@@ -48,7 +86,10 @@ class AppDatabase {
         last_name TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
         phone TEXT,
-        password_hash TEXT,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        city TEXT NOT NULL DEFAULT 'Tunis',
+        public_username TEXT NOT NULL,
         member_since TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -208,19 +249,38 @@ class AppDatabase {
     'email_verified INTEGER NOT NULL DEFAULT 0',
   ];
 
-  Future<void> _addUserProfileColumns(Database db) async {
-    final info = await db.rawQuery(
-      'PRAGMA table_info(${DatabaseConstants.users})',
-    );
-    final existing = info.map((c) => c['name']! as String).toSet();
+  Future<bool> _hasColumn(Database db, String table, String column) async {
+    try {
+      final info = await db.rawQuery('PRAGMA table_info($table)');
+      return info.any((c) => c['name'] == column);
+    } catch (_) {
+      return false;
+    }
+  }
 
-    for (final column in _userProfileColumns) {
+  /// Retourne les colonnes réellement ajoutées.
+  Future<Set<String>> _addUserProfileColumns(Database db) =>
+      _addMissingColumns(db, DatabaseConstants.users, _userProfileColumns);
+
+  /// Ajoute les colonnes [definitions] (« nom TYPE … ») absentes de [table].
+  /// Vérifie d'abord PRAGMA table_info : jamais d'ALTER TABLE en double,
+  /// quel que soit le chemin (installation, migration, réparation).
+  Future<Set<String>> _addMissingColumns(
+    Database db,
+    String table,
+    List<String> definitions,
+  ) async {
+    final info = await db.rawQuery('PRAGMA table_info($table)');
+    final existing = info.map((c) => c['name']! as String).toSet();
+    final added = <String>{};
+    for (final column in definitions) {
       final name = column.split(' ').first;
       if (existing.contains(name)) continue;
-      await db.execute(
-        'ALTER TABLE ${DatabaseConstants.users} ADD COLUMN $column',
-      );
+      await db.execute('ALTER TABLE $table ADD COLUMN $column');
+      existing.add(name);
+      added.add(name);
     }
+    return added;
   }
 
   Future<void> _createRoadSignsTable(Database db) async {
@@ -270,6 +330,14 @@ class AppDatabase {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // Noté avant toute migration : la réparation v7 ajoute aussi les
+    // colonnes du profil.
+    final hadEmailVerified = await _hasColumn(
+      db,
+      DatabaseConstants.users,
+      'email_verified',
+    );
+
     if (oldVersion < 2) {
       await _createRoadSignsTable(db);
     }
@@ -277,24 +345,47 @@ class AppDatabase {
       await _createExamsTables(db);
     }
     if (oldVersion < 4) {
-      // Retire les données de démo préremplies ; l'auth reste hors SQLite.
+      // Retire les données de démo préremplies.
       await db.delete(DatabaseConstants.examQuestions);
       await db.delete(DatabaseConstants.exams);
       await db.delete(DatabaseConstants.roadSigns);
       await db.delete(DatabaseConstants.cars);
     }
     if (oldVersion < 5) {
-      await _addUserProfileColumns(db);
+      await _addMissingColumns(db, DatabaseConstants.users, const [
+        "city TEXT NOT NULL DEFAULT 'Tunis'",
+        "public_username TEXT NOT NULL DEFAULT 'Utilisateur_TN'",
+      ]);
     }
     if (oldVersion < 6) {
-      await _addUserProfileColumns(db); // ajoute email_verified
-      // Comptes créés avant la vérification : considérés comme vérifiés,
-      // pour ne pas bloquer les utilisateurs existants.
-      await db.update(DatabaseConstants.users, {'email_verified': 1});
+      await _addMissingColumns(db, DatabaseConstants.users, const [
+        "role TEXT NOT NULL DEFAULT 'user'",
+      ]);
     }
     if (oldVersion < 7) {
+      await _ensureUsersSchema(db);
+    }
+    // --- Module User / Réclamations (après les migrations de l'équipe) ---
+    if (oldVersion < 8) {
+      await _addUserProfileColumns(db);
+      // Comptes créés avant la vérification de l'e-mail : considérés comme
+      // vérifiés, pour ne pas bloquer les utilisateurs existants.
+      if (!hadEmailVerified) {
+        await db.update(DatabaseConstants.users, {'email_verified': 1});
+      }
+    }
+    if (oldVersion < 9) {
       await _createComplaintsTable(db);
     }
+  }
+
+  /// Réinitialise la base locale (dernier recours si auth cassée).
+  Future<void> reset() async {
+    await close();
+    final databasesPath = await getDatabasesPath();
+    final path = p.join(databasesPath, DatabaseConstants.fileName);
+    await deleteDatabase(path);
+    _db = await _open();
   }
 
   Future<void> close() async {

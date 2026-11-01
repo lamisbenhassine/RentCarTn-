@@ -2,18 +2,25 @@ import 'package:flutter/foundation.dart';
 
 import '../data/local/session_storage.dart';
 import '../data/models/user_profile.dart';
+import '../data/models/user_role.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/services/google_auth_service.dart';
 
-/// Session utilisateur courante. Les comptes sont persistés en SQLite sur
-/// mobile (voir [AuthRepository]). « Se souvenir de moi » garde l'id du
-/// compte dans shared_preferences pour reconnecter au lancement.
+/// Session utilisateur (sqflite sur téléphone, prefs sur web).
+///
+/// - Équipe : session portée par [AuthRepository] (table auth_session),
+///   rôles admin / user / company, compte admin par défaut.
+/// - Module User : « Se souvenir de moi », blocage 60 s après 3 échecs,
+///   Google, vérification de l'e-mail, mot de passe oublié (OTP), profil,
+///   changement de mot de passe, suppression du compte.
 class AuthProvider extends ChangeNotifier {
   AuthProvider({AuthRepository? repository, SessionStorage? session})
-    : _repository = repository ?? const AuthRepository(),
+    : _repository = repository ?? AuthRepositoryFactory.create(),
       _session = session ?? const SessionStorage();
 
   final AuthRepository _repository;
+
+  /// Préférences locales : blocage de connexion, préférences par compte.
   final SessionStorage _session;
 
   /// Échecs autorisés avant blocage, et durée du blocage.
@@ -22,6 +29,7 @@ class AuthProvider extends ChangeNotifier {
 
   UserProfile? _user;
   bool _busy = false;
+  bool _restoring = true;
   String? _error;
   AuthErrorCode? _errorCode;
   int _failedAttempts = 0;
@@ -30,7 +38,14 @@ class AuthProvider extends ChangeNotifier {
   UserProfile? get user => _user;
   bool get isLoggedIn => _user != null;
   bool get busy => _busy;
+  bool get restoring => _restoring;
   String? get error => _error;
+
+  UserRole get role => _user?.role ?? UserRole.user;
+  bool get isAdmin => _user?.isAdmin ?? false;
+  bool get isClient => _user?.isClient ?? false;
+  bool get isCompany => _user?.isCompany ?? false;
+  bool get isParticular => _user?.isParticular ?? false;
 
   /// Cause du dernier échec de connexion (compte introuvable, mauvais mot
   /// de passe, blocage).
@@ -58,9 +73,48 @@ class AuthProvider extends ChangeNotifier {
   /// ou simplement annulé par l'utilisateur).
   GoogleAuthFailure? get googleError => _googleError;
 
+  /// Au lancement : admin par défaut, blocage en cours, puis compte de la
+  /// session (s'il existe toujours).
+  Future<void> restoreSession() async {
+    _restoring = true;
+    notifyListeners();
+    try {
+      await _repository.ensureDefaultAdmin();
+      try {
+        _lockedUntil = await _session.readLockedUntil();
+      } catch (_) {}
+      var id = await _repository.readSessionUserId();
+      // « Se souvenir de moi » de l'ancienne branche module-user
+      // (shared_preferences) : repris une fois dans la session de l'équipe.
+      if (id == null) {
+        try {
+          id = await _session.readLegacyUserId();
+          if (id != null) {
+            await _repository.saveSession(id);
+            await _session.clearLegacyUserId();
+          }
+        } catch (_) {}
+      }
+      if (id != null) {
+        _user = await _repository.byId(id);
+        if (_user == null) await _repository.clearSession();
+      }
+    } catch (_) {
+      _user = null;
+    } finally {
+      _restoring = false;
+      notifyListeners();
+    }
+  }
+
+  /// Le repository enregistre la session à chaque connexion ; sans
+  /// « Se souvenir de moi », elle est effacée (pas de reconnexion auto).
+  Future<void> _applyRemember(bool remember) async {
+    if (!remember) await _repository.clearSession();
+  }
+
   /// « Continuer avec Google ». Retourne `true` si connecté.
   /// Annulation → `false` avec [googleError] à `null` (aucun message).
-  /// La session est mémorisée comme avec « Se souvenir de moi ».
   Future<bool> loginWithGoogle({bool remember = true}) async {
     _googleError = null;
     _setBusy(true);
@@ -70,11 +124,7 @@ class AuthProvider extends ChangeNotifier {
       _user = user;
       _error = null;
       _errorCode = null;
-      if (remember) {
-        await _session.saveUserId(user.id);
-      } else {
-        await _session.clearUserId();
-      }
+      await _applyRemember(remember);
       return true;
     } on GoogleAuthException catch (e) {
       _googleError = e.reason;
@@ -84,25 +134,10 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// À appeler au lancement (avant runApp) : recharge le blocage en cours
-  /// et reconnecte le compte mémorisé, s'il existe toujours.
-  Future<void> restoreSession() async {
-    try {
-      _lockedUntil = await _session.readLockedUntil();
-      final userId = await _session.readUserId();
-      if (userId == null) return;
-      _user = await _repository.findUserById(userId);
-      if (_user == null) await _session.clearUserId();
-    } catch (_) {
-      // Préférences illisibles : on démarre simplement déconnecté.
-      _user = null;
-    }
-  }
-
   Future<bool> login(
     String email,
     String password, {
-    bool remember = false,
+    bool remember = true,
   }) async {
     if (isLocked) {
       _errorCode = AuthErrorCode.locked;
@@ -118,25 +153,24 @@ class AuthProvider extends ChangeNotifier {
       _errorCode = null;
       _failedAttempts = 0;
       _lockedUntil = null;
-      await _session.saveLockedUntil(null);
-      if (remember) {
-        await _session.saveUserId(_user!.id);
-      } else {
-        await _session.clearUserId();
-      }
+      await _saveLock(null);
+      await _applyRemember(remember);
       return true;
     } on AuthException catch (e) {
       _failedAttempts++;
       if (_failedAttempts >= maxAttempts) {
         _failedAttempts = 0;
         _lockedUntil = DateTime.now().add(lockDuration);
-        await _session.saveLockedUntil(_lockedUntil);
+        await _saveLock(_lockedUntil);
         _errorCode = AuthErrorCode.locked;
         _error = 'Trop de tentatives. Connexion bloquée pendant 60 secondes.';
       } else {
         _errorCode = e.code;
         _error = e.message;
       }
+      return false;
+    } catch (e) {
+      _error = 'Connexion impossible : $e';
       return false;
     } finally {
       _setBusy(false);
@@ -150,6 +184,7 @@ class AuthProvider extends ChangeNotifier {
     required String phone,
     required String password,
     String city = 'Tunis',
+    UserRole role = UserRole.user,
     String address = '',
     double? latitude,
     double? longitude,
@@ -163,15 +198,20 @@ class AuthProvider extends ChangeNotifier {
         phone: phone,
         password: password,
         city: city,
+        role: role,
         address: address,
         latitude: latitude,
         longitude: longitude,
       );
       _error = null;
+      _errorCode = null;
       return true;
     } on AuthException catch (e) {
       _error = e.message;
       _errorCode = e.code;
+      return false;
+    } catch (e) {
+      _error = 'Inscription impossible : $e';
       return false;
     } finally {
       _setBusy(false);
@@ -179,7 +219,6 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// Vérifie l'étape 1 de l'inscription : e-mail et téléphone déjà pris ?
-  /// (l'écran affiche le message traduit).
   Future<({bool emailTaken, bool phoneTaken})> checkIdentityAvailable({
     required String email,
     required String phone,
@@ -190,6 +229,25 @@ class AuthProvider extends ChangeNotifier {
         emailTaken: await _repository.isEmailTaken(email),
         phoneTaken: await _repository.isPhoneTaken(phone),
       );
+    } finally {
+      _setBusy(false);
+    }
+  }
+
+  /// Équipe : vérifie qu'un compte existe pour [email].
+  Future<bool> sendResetLink(String email) async {
+    _setBusy(true);
+    try {
+      await _repository.sendResetLink(email);
+      _error = null;
+      return true;
+    } on AuthException catch (e) {
+      _error = e.message;
+      _errorCode = e.code;
+      return false;
+    } catch (_) {
+      _error = 'Demande impossible.';
+      return false;
     } finally {
       _setBusy(false);
     }
@@ -229,7 +287,7 @@ class AuthProvider extends ChangeNotifier {
       _lockedUntil = null;
       _error = null;
       _errorCode = null;
-      await _session.saveLockedUntil(null);
+      await _saveLock(null);
     } finally {
       _setBusy(false);
     }
@@ -246,8 +304,8 @@ class AuthProvider extends ChangeNotifier {
     return updateProfile(current.copyWith(emailVerified: true));
   }
 
-  /// Sauvegarde le profil (SQLite sur mobile). Retourne `false` si l'e-mail
-  /// ou le téléphone appartient déjà à un autre compte ([error] renseigné).
+  /// Sauvegarde le profil. Retourne `false` si l'e-mail ou le téléphone
+  /// appartient déjà à un autre compte ([error] renseigné).
   Future<bool> updateProfile(UserProfile updated) async {
     try {
       _user = await _repository.updateProfile(updated);
@@ -296,8 +354,6 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// Supprime définitivement le compte connecté, puis déconnecte.
-  /// Retourne `false` si le mot de passe est faux ou si la suppression
-  /// échoue ([errorCode] renseigné).
   Future<bool> deleteAccount({String? password}) async {
     final current = _user;
     if (current == null) return false;
@@ -311,13 +367,10 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
 
-    // Préférences liées + session mémorisée + blocage + Google.
+    // Préférences liées au compte + blocage.
     try {
       await _session.clearForDeletedAccount(current.id);
-    } catch (_) {
-      // Le compte n'existe plus en BD : une préférence restante est sans effet
-      // (restoreSession ne retrouvera pas l'id et l'effacera).
-    }
+    } catch (_) {}
     await _repository.signOutGoogle();
 
     _user = null;
@@ -331,15 +384,15 @@ class AuthProvider extends ChangeNotifier {
     return true;
   }
 
-  /// Déconnexion : oublie aussi le compte mémorisé et la session Google.
-  void logout() {
+  /// Déconnexion : efface la session et la session Google.
+  Future<void> logout() async {
     _user = null;
     _error = null;
     _errorCode = null;
     _googleError = null;
-    _session.clearUserId();
-    _repository.signOutGoogle();
     notifyListeners();
+    await _repository.clearSession();
+    await _repository.signOutGoogle();
   }
 
   void clearError() {
@@ -347,6 +400,12 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
     _errorCode = null;
     notifyListeners();
+  }
+
+  Future<void> _saveLock(DateTime? until) async {
+    try {
+      await _session.saveLockedUntil(until);
+    } catch (_) {}
   }
 
   void _setBusy(bool value) {

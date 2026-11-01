@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/responsive.dart';
 import '../../state/auth_provider.dart';
 import '../../state/cart_provider.dart';
+import '../../state/notification_provider.dart';
 
 class _NavItem {
   const _NavItem(this.label, this.icon, this.activeIcon, this.path);
@@ -204,10 +205,15 @@ class _RailShortcuts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = context.watch<AuthProvider>().isAdmin;
     final shortcuts = <(IconData, String, String)>[
       (Icons.event_note_rounded, 'Réservations', Routes.reservations),
       (Icons.emoji_events_rounded, 'Mes enchères', Routes.myAuctions),
-      (Icons.inventory_2_rounded, 'Gestion flotte', Routes.fleet),
+      (
+        Icons.inventory_2_rounded,
+        isAdmin ? 'Gestion flotte' : 'Ventes flotte',
+        Routes.fleet,
+      ),
     ];
 
     return Column(
@@ -280,7 +286,9 @@ class _TopBar extends StatelessWidget {
           ),
           const Spacer(),
           CartButton(count: cartCount),
-          const SizedBox(width: 10),
+          const SizedBox(width: 4),
+          const NotificationBell(),
+          const SizedBox(width: 4),
           IconButton(
             tooltip: 'Mes réservations',
             onPressed: () => context.push(Routes.reservations),
@@ -420,6 +428,60 @@ class CartButton extends StatelessWidget {
               ),
               child: Text(
                 '$count',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Cloche notifications (badge = non lues).
+class NotificationBell extends StatelessWidget {
+  const NotificationBell({super.key, this.dark = false});
+
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    final unread = context.watch<NotificationProvider>().unreadCount;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          tooltip: 'Notifications',
+          onPressed: () => context.push(Routes.notifications),
+          icon: Icon(
+            unread > 0
+                ? Icons.notifications_rounded
+                : Icons.notifications_none_rounded,
+            color: dark ? Colors.white : null,
+          ),
+        ),
+        if (unread > 0)
+          Positioned(
+            right: 4,
+            top: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              constraints: const BoxConstraints(minWidth: 18),
+              decoration: BoxDecoration(
+                color: AppColors.accent,
+                borderRadius: BorderRadius.circular(100),
+                border: Border.all(
+                  color: dark ? AppColors.navy : AppColors.surfaceAlt,
+                  width: 1.5,
+                ),
+              ),
+              child: Text(
+                unread > 99 ? '99+' : '$unread',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white,

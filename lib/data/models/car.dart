@@ -1,4 +1,5 @@
 import 'date_range.dart';
+import 'user_role.dart';
 
 enum CarCategory { economique, berline, suv, luxe, electrique, utilitaire }
 
@@ -62,6 +63,16 @@ class Car {
     this.deposit = 500,
     this.promoLabel,
     this.oldPricePerDay,
+    this.offeredExtraIds = const [
+      'gps',
+      'siege',
+      'assurance',
+      'conducteur',
+      'livraison',
+      'wifi',
+    ],
+    /// Si true : visible / louable uniquement par le rôle Entreprise (+ admin).
+    this.companyOnly = false,
   });
 
   final String id;
@@ -89,15 +100,44 @@ class Car {
   final String? promoLabel;
   final double? oldPricePerDay;
 
+  /// Options supplémentaires proposées à la réservation (ids catalogue).
+  final List<String> offeredExtraIds;
+
+  /// Véhicule réservé à la location entreprise (longue durée / flotte).
+  final bool companyOnly;
+
   String get fullName => '$brand $model';
   String get title => '$brand $model $year';
   String get mainImage => images.isNotEmpty ? images.first : '';
   bool get hasPromo => promoLabel != null && oldPricePerDay != null;
 
-  bool isAvailableFor(DateRange range) {
-    if (!available) return false;
-    return !bookedRanges.any((booked) => booked.overlaps(range));
+  static DateTime get _today {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day);
   }
+
+  /// Libre aujourd'hui (badge vert) — aucun locataire sur la date du jour.
+  bool get isLibreAujourdhui {
+    final today = _today;
+    return !bookedRanges.any((r) => r.contains(today));
+  }
+
+  /// Première date où le véhicule redevient libre (jour suivant la fin de
+  /// la location en cours / future bloquante).
+  DateTime? get prochaineDisponibilite {
+    final today = _today;
+    DateTime? maxEnd;
+    for (final r in bookedRanges) {
+      if (r.end.isBefore(today)) continue;
+      if (maxEnd == null || r.end.isAfter(maxEnd)) maxEnd = r.end;
+    }
+    if (maxEnd == null) return null;
+    return maxEnd.add(const Duration(days: 1));
+  }
+
+  /// True si les dates choisies ne chevauchent aucune réservation.
+  bool isAvailableFor(DateRange range) =>
+      !bookedRanges.any((booked) => booked.overlaps(range));
 
   DateRange? conflictFor(DateRange range) {
     for (final booked in bookedRanges) {
@@ -133,6 +173,8 @@ class Car {
     double? deposit,
     String? promoLabel,
     double? oldPricePerDay,
+    List<String>? offeredExtraIds,
+    bool? companyOnly,
     bool clearPromo = false,
   }) {
     return Car(
@@ -162,6 +204,8 @@ class Car {
       oldPricePerDay: clearPromo
           ? null
           : (oldPricePerDay ?? this.oldPricePerDay),
+      offeredExtraIds: offeredExtraIds ?? this.offeredExtraIds,
+      companyOnly: companyOnly ?? this.companyOnly,
     );
   }
 
@@ -189,6 +233,8 @@ class Car {
         'deposit': deposit,
         'promoLabel': promoLabel,
         'oldPricePerDay': oldPricePerDay,
+        'offeredExtraIds': offeredExtraIds,
+        'companyOnly': companyOnly,
         'bookedRanges': [
           for (final r in bookedRanges)
             {
@@ -242,7 +288,26 @@ class Car {
       deposit: (json['deposit'] as num?)?.toDouble() ?? 500,
       promoLabel: json['promoLabel'] as String?,
       oldPricePerDay: (json['oldPricePerDay'] as num?)?.toDouble(),
+      offeredExtraIds: (json['offeredExtraIds'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [
+            'gps',
+            'siege',
+            'assurance',
+            'conducteur',
+            'livraison',
+            'wifi',
+          ],
+      companyOnly: json['companyOnly'] as bool? ?? false,
       bookedRanges: ranges,
     );
+  }
+
+  /// Visibilité selon le rôle (voitures « entreprise » = company + admin).
+  bool isVisibleFor(UserRole role) {
+    if (role.isAdmin) return true;
+    if (companyOnly) return role.isCompany;
+    return true;
   }
 }

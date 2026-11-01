@@ -47,7 +47,7 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 
-# Secrets Gemini (ne jamais committer la clé API)
+# Secrets Gemini / Groq (ne jamais committer les clés API)
 lib/core/config/gemini_secrets.dart
 
 # Secrets EmailJS (envoi du code OTP par e-mail)
@@ -55,5 +55,6 @@ lib/core/config/emailjs_secrets.dart
 
 # Secrets Google Sign-In (Web Client ID)
 lib/core/config/google_secrets.dart
+lib/core/config/groq_secrets.dart
 .env
 .env.*

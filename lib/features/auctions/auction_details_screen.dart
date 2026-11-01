@@ -164,10 +164,19 @@ class _AuctionDetailsScreenState extends State<AuctionDetailsScreen> {
           },
         ),
         const SizedBox(height: 22),
+        _SectionTitle(
+          auction.isLot
+              ? 'Véhicules du lot (${auction.vehicleCount})'
+              : 'Véhicule',
+        ),
+        _LotVehiclesBlock(auction: auction),
+        const SizedBox(height: 22),
         _SectionTitle('Historique des offres (${auction.bidCount})'),
         _BidHistory(auction: auction),
         const SizedBox(height: 22),
-        _SectionTitle('Description du véhicule'),
+        _SectionTitle(
+          auction.isLot ? 'Description du lot' : 'Description du véhicule',
+        ),
         Text(
           auction.description,
           style: const TextStyle(
@@ -176,9 +185,11 @@ class _AuctionDetailsScreenState extends State<AuctionDetailsScreen> {
             color: AppColors.textSecondary,
           ),
         ),
-        const SizedBox(height: 22),
-        _SectionTitle('Fiche technique'),
-        _SpecsBlock(auction: auction),
+        if (!auction.isLot) ...[
+          const SizedBox(height: 22),
+          _SectionTitle('Fiche technique'),
+          _SpecsBlock(auction: auction),
+        ],
         if (auction.inspectionNotes.isNotEmpty) ...[
           const SizedBox(height: 22),
           _SectionTitle('Rapport d\'inspection'),
@@ -238,8 +249,10 @@ class _AuctionDetailsScreenState extends State<AuctionDetailsScreen> {
       backgroundColor: AppColors.surface,
       appBar: appScreenBar(
         context,
-        title: auction.fullName,
-        subtitle: '${auction.year} · ${auction.city}',
+        title: auction.title,
+        subtitle: auction.isLot
+            ? '${auction.vehicleCount} voitures · ${auction.city}'
+            : '${auction.year} · ${auction.city}',
         actions: [
           IconButton(
             tooltip: 'Mes enchères',
@@ -330,10 +343,28 @@ class _Gallery extends StatelessWidget {
         Positioned(
           top: 12,
           right: 12,
-          child: CountdownPill(
-            endAt: auction.endAt,
-            ended: !auction.isOpen,
-          ),
+          child: auction.computedStatus == AuctionStatus.aVenir
+              ? Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Text(
+                    'Ouvre le ${Formatters.dayMonth(auction.startAt)} · '
+                    '${Formatters.time(auction.startAt)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                )
+              : CountdownPill(
+                  endAt: auction.endAt,
+                  ended: !auction.isOpen,
+                ),
         ),
         Positioned(
           bottom: 14,
@@ -373,7 +404,15 @@ class _HeaderBlock extends StatelessWidget {
       children: [
         Row(
           children: [
-            StatusBadge.condition(auction.condition),
+            if (auction.isLot)
+              StatusBadge(
+                label: '${auction.vehicleCount} voitures',
+                color: AppColors.accent,
+                icon: Icons.directions_car_filled_rounded,
+                dense: true,
+              )
+            else
+              StatusBadge.condition(auction.condition),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
@@ -402,14 +441,22 @@ class _HeaderBlock extends StatelessWidget {
           spacing: 16,
           runSpacing: 8,
           children: [
-            SpecChip(
-              icon: Icons.speed_rounded,
-              label: Formatters.mileage(auction.mileage),
-            ),
-            SpecChip(
-              icon: Icons.cake_outlined,
-              label: '${auction.ageYears} an${auction.ageYears > 1 ? 's' : ''}',
-            ),
+            if (auction.isLot)
+              SpecChip(
+                icon: Icons.inventory_2_outlined,
+                label: 'Lot · ${auction.vehicleCount} véhicules',
+              )
+            else
+              SpecChip(
+                icon: Icons.speed_rounded,
+                label: Formatters.mileage(auction.mileage),
+              ),
+            if (!auction.isLot)
+              SpecChip(
+                icon: Icons.cake_outlined,
+                label:
+                    '${auction.ageYears} an${auction.ageYears > 1 ? 's' : ''}',
+              ),
             SpecChip(
               icon: auction.hadAccident
                   ? Icons.car_crash_rounded
@@ -1018,6 +1065,93 @@ class _BidHistory extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _LotVehiclesBlock extends StatelessWidget {
+  const _LotVehiclesBlock({required this.auction});
+
+  final Auction auction;
+
+  @override
+  Widget build(BuildContext context) {
+    final vehicles = auction.vehicles;
+    return Column(
+      children: [
+        for (var i = 0; i < vehicles.length; i++) ...[
+          AppCard(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CarImage(
+                  url: vehicles[i].mainImage,
+                  height: 72,
+                  width: 96,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        vehicles[i].title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${Formatters.mileage(vehicles[i].mileage)} · '
+                        '${vehicles[i].condition.shortLabel} · '
+                        '${vehicles[i].fuel.label} · '
+                        '${vehicles[i].city}',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      if (vehicles[i].hadAccident) ...[
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Accident déclaré',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.warning,
+                          ),
+                        ),
+                      ],
+                      if (vehicles[i].extraInfo.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          vehicles[i].extraInfo,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (auction.isLot)
+                  Text(
+                    '${i + 1}/${vehicles.length}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (i != vehicles.length - 1) const SizedBox(height: 10),
+        ],
+      ],
     );
   }
 }

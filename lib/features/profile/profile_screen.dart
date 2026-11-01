@@ -17,11 +17,13 @@ import '../../data/services/complaint_trust_service.dart';
 import '../../data/services/trust_score_service.dart';
 import '../../l10n/l10n.dart';
 import '../../state/load_state.dart';
+import '../../data/models/user_role.dart';
 import '../../state/auction_provider.dart';
 import '../../state/auth_provider.dart';
 import '../../state/complaint_provider.dart';
 import '../../state/learning_provider.dart';
 import '../../state/reminder_provider.dart';
+import '../../state/notification_provider.dart';
 import '../../state/reservation_provider.dart';
 import '../../state/theme_provider.dart';
 import '../../widgets/common.dart';
@@ -106,7 +108,7 @@ class ProfileScreen extends StatelessWidget {
     );
 
     if (confirmed != true || !context.mounted) return;
-    context.read<AuthProvider>().logout();
+    await context.read<AuthProvider>().logout();
   }
 
   @override
@@ -117,6 +119,7 @@ class ProfileScreen extends StatelessWidget {
     final reservations = context.watch<ReservationProvider>();
     final auctions = context.watch<AuctionProvider>();
     final learning = context.watch<LearningProvider>();
+    final notifs = context.watch<NotificationProvider>();
 
     if (user == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -217,6 +220,14 @@ class ProfileScreen extends StatelessWidget {
                   subtitle: l.profileCartSubtitle,
                   onTap: () => context.push(Routes.cart),
                 ),
+                _MenuItem(
+                  icon: Icons.notifications_outlined,
+                  label: 'Notifications',
+                  subtitle: notifs.hasUnread
+                      ? '${notifs.unreadCount} non lue(s)'
+                      : 'Alertes enchères et annonces',
+                  onTap: () => context.push(Routes.notifications),
+                ),
               ],
             ),
             const SizedBox(height: 18),
@@ -240,8 +251,12 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 _MenuItem(
                   icon: Icons.inventory_2_outlined,
-                  label: l.profileFleet,
-                  subtitle: l.profileFleetSubtitle,
+                  label: auth.isAdmin
+                      ? 'Gestion de flotte'
+                      : 'Ventes de flotte',
+                  subtitle: auth.isAdmin
+                      ? 'Publier et suivre les ventes'
+                      : 'Consulter les ventes (lecture seule)',
                   onTap: () => context.push(Routes.fleet),
                 ),
               ],
@@ -490,6 +505,15 @@ class _ProfileHeader extends StatelessWidget {
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  user.role.label,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),

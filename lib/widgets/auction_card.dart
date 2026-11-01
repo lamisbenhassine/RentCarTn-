@@ -63,15 +63,24 @@ class AuctionCard extends StatelessWidget {
                   Positioned(
                     top: 12,
                     right: 12,
-                    child: CountdownPill(
-                      endAt: auction.endAt,
-                      ended: ended,
-                    ),
+                    child: status == AuctionStatus.aVenir
+                        ? _OpensAtPill(startAt: auction.startAt)
+                        : CountdownPill(
+                            endAt: auction.endAt,
+                            ended: ended,
+                          ),
                   ),
                   Positioned(
                     bottom: 12,
                     left: 12,
-                    child: StatusBadge.condition(auction.condition),
+                    child: auction.isLot
+                        ? StatusBadge(
+                            label: '${auction.vehicleCount} voitures',
+                            color: AppColors.accent,
+                            icon: Icons.directions_car_filled_rounded,
+                            dense: true,
+                          )
+                        : StatusBadge.condition(auction.condition),
                   ),
                 ],
               ),
@@ -93,18 +102,38 @@ class AuctionCard extends StatelessWidget {
                       color: AppColors.textPrimary,
                     ),
                   ),
+                  if (auction.isLot) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      auction.vehicles.map((v) => v.fullName).join(' · '),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 14,
                     runSpacing: 6,
                     children: [
-                      SpecChip(
-                        icon: Icons.speed_rounded,
-                        label: Formatters.mileage(auction.mileage),
-                      ),
+                      if (!auction.isLot)
+                        SpecChip(
+                          icon: Icons.speed_rounded,
+                          label: Formatters.mileage(auction.mileage),
+                        ),
+                      if (auction.isLot)
+                        SpecChip(
+                          icon: Icons.inventory_2_outlined,
+                          label: 'Lot · ${auction.vehicleCount}',
+                        ),
                       SpecChip(
                         icon: Icons.local_gas_station_rounded,
-                        label: auction.fuel.label,
+                        label: auction.isLot
+                            ? '${auction.vehicleCount} véhicules'
+                            : auction.fuel.label,
                       ),
                       SpecChip(
                         icon: Icons.place_rounded,
@@ -200,11 +229,19 @@ class AuctionCard extends StatelessWidget {
                             : AppColors.accent,
                       ),
                       icon: Icon(
-                        ended ? Icons.visibility_rounded : Icons.gavel_rounded,
+                        ended
+                            ? Icons.visibility_rounded
+                            : status == AuctionStatus.aVenir
+                                ? Icons.schedule_rounded
+                                : Icons.gavel_rounded,
                         size: 18,
                       ),
                       label: Text(
-                        ended ? 'Voir le résultat' : "Voir l'enchère",
+                        ended
+                            ? 'Voir le résultat'
+                            : status == AuctionStatus.aVenir
+                                ? 'Voir (bientôt)'
+                                : "Voir l'enchère",
                       ),
                     ),
                   ),
@@ -213,6 +250,38 @@ class AuctionCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _OpensAtPill extends StatelessWidget {
+  const _OpensAtPill({required this.startAt});
+
+  final DateTime startAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.schedule_rounded, size: 14, color: Colors.white),
+          const SizedBox(width: 5),
+          Text(
+            'Ouvre le ${Formatters.dayMonth(startAt)} · ${Formatters.time(startAt)}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -3484,6 +3484,24 @@ abstract class AppLocalizations {
   /// **'Assistant IA temporairement indisponible (quota atteint), réessayez plus tard.'**
   String get aiQuotaReached;
 
+  /// No description provided for @registerAccountType.
+  ///
+  /// In fr, this message translates to:
+  /// **'Type de compte'**
+  String get registerAccountType;
+
+  /// No description provided for @registerRoleUser.
+  ///
+  /// In fr, this message translates to:
+  /// **'Utilisateur'**
+  String get registerRoleUser;
+
+  /// No description provided for @registerRoleCompany.
+  ///
+  /// In fr, this message translates to:
+  /// **'Entreprise'**
+  String get registerRoleCompany;
+
   /// No description provided for @themeTitle.
   ///
   /// In fr, this message translates to:

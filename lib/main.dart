@@ -12,6 +12,7 @@ import 'data/models/profile_completion.dart';
 import 'data/services/notification_service.dart';
 import 'features/complaints/complaint_notifications.dart';
 import 'l10n/app_localizations.dart';
+import 'data/services/local_notification_service.dart';
 import 'state/auction_provider.dart';
 import 'state/auth_provider.dart';
 import 'state/complaint_provider.dart';
@@ -23,6 +24,7 @@ import 'state/learning_provider.dart';
 import 'state/load_state.dart';
 import 'state/locale_provider.dart';
 import 'state/reminder_provider.dart';
+import 'state/notification_provider.dart';
 import 'state/reservation_provider.dart';
 import 'state/theme_provider.dart';
 
@@ -39,7 +41,10 @@ Future<void> main() async {
   final theme = ThemeProvider();
   await theme.load();
 
-  // Notifications locales (Android) : fuseau Africa/Tunis + réglages.
+  // Notifications téléphone de l'équipe (enchères), puis celles du module
+  // User / Réclamations. Ordre important : le même plugin est partagé et
+  // seul le 2e initialize() installe le gestionnaire de clic (routes).
+  await LocalNotificationService.instance.init();
   await NotificationService.instance.init();
   final reminders = ReminderProvider();
   await reminders.load();
@@ -97,6 +102,9 @@ class RentCarApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ExamProvider()),
         ChangeNotifierProvider(create: (_) => ComplaintProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(
+          create: (_) => NotificationProvider()..load(),
+        ),
       ],
       child: const _AppView(),
     );
@@ -234,11 +242,11 @@ class _AppViewState extends State<_AppView> with WidgetsBindingObserver {
     });
 
     // Clic sur une notification → écran concerné (payload = route).
-    NotificationService.instance.onOpenRoute = (route) => _router.go(route);
+    NotificationService.instance.onOpenRoute = _openNotification;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // App lancée depuis une notification alors qu'elle était fermée.
       final route = await NotificationService.instance.launchRoute();
-      if (route != null && mounted) _router.go(route);
+      if (route != null && mounted) _openNotification(route);
     });
 
     // Session restaurée : le pseudo d'enchères doit suivre le compte.
@@ -252,6 +260,12 @@ class _AppViewState extends State<_AppView> with WidgetsBindingObserver {
         );
       });
     }
+  }
+
+  /// Clic sur une notification. Payload = route go_router (module User /
+  /// Réclamations, ex. `/reclamations/ID`) ou id d'enchère (équipe).
+  void _openNotification(String payload) {
+    _router.go(payload.startsWith('/') ? payload : Routes.auction(payload));
   }
 
   @override

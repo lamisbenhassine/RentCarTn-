@@ -6,10 +6,13 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/mock/mock_cars.dart';
 import '../../data/models/car.dart';
+import '../../state/auth_provider.dart';
 import '../../state/car_provider.dart';
 import '../../widgets/car_image.dart';
 import '../../widgets/common.dart';
@@ -44,12 +47,17 @@ class _CarFormScreenState extends State<CarFormScreen> {
   late final TextEditingController _features;
 
   String _city = MockCars.villes.first;
+  CarCategory _category = CarCategory.economique;
   bool _airConditioning = true;
   bool _available = true;
+  bool _companyOnly = false;
   bool _saving = false;
   bool _picking = false;
   bool _ready = false;
   final List<String> _images = [];
+  final Set<String> _offeredExtraIds = {
+    for (final e in MockCars.extras) e.id,
+  };
 
   @override
   void initState() {
@@ -64,7 +72,13 @@ class _CarFormScreenState extends State<CarFormScreen> {
     _description = TextEditingController();
     _features = TextEditingController();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _hydrate());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.read<AuthProvider>().isAdmin) {
+        context.go(Routes.manageCars);
+        return;
+      }
+      _hydrate();
+    });
   }
 
   Future<void> _hydrate() async {
@@ -85,11 +99,16 @@ class _CarFormScreenState extends State<CarFormScreen> {
         _features.text = existing.features.join(', ');
         setState(() {
           _city = existing.city;
+          _category = existing.category;
           _airConditioning = existing.airConditioning;
           _available = existing.available;
+          _companyOnly = existing.companyOnly;
           _images
             ..clear()
             ..addAll(existing.images.where((u) => u.isNotEmpty));
+          _offeredExtraIds
+            ..clear()
+            ..addAll(existing.offeredExtraIds);
           _ready = true;
         });
         return;
@@ -179,7 +198,7 @@ class _CarFormScreenState extends State<CarFormScreen> {
       brand: _brand.text.trim(),
       model: _model.text.trim(),
       year: int.parse(_year.text.trim()),
-      category: existing?.category ?? CarCategory.economique,
+      category: _category,
       pricePerDay: double.parse(_price.text.trim().replaceAll(',', '.')),
       transmission: existing?.transmission ?? Transmission.manuelle,
       fuel: existing?.fuel ?? FuelType.essence,
@@ -199,6 +218,8 @@ class _CarFormScreenState extends State<CarFormScreen> {
       deposit: existing?.deposit ?? 500,
       promoLabel: existing?.promoLabel,
       oldPricePerDay: existing?.oldPricePerDay,
+      offeredExtraIds: _offeredExtraIds.toList(growable: false),
+      companyOnly: _companyOnly,
     );
 
     try {
@@ -426,6 +447,21 @@ class _CarFormScreenState extends State<CarFormScreen> {
                 ],
               ),
               const SizedBox(height: 14),
+              DropdownButtonFormField<CarCategory>(
+                initialValue: _category,
+                decoration: const InputDecoration(
+                  labelText: 'Catégorie *',
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
+                items: [
+                  for (final cat in CarCategory.values)
+                    DropdownMenuItem(value: cat, child: Text(cat.label)),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _category = v);
+                },
+              ),
+              const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 initialValue: _city,
                 decoration: const InputDecoration(labelText: 'Lieu *'),
@@ -450,6 +486,16 @@ class _CarFormScreenState extends State<CarFormScreen> {
                 value: _available,
                 onChanged: (v) => setState(() => _available = v),
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Réservé aux entreprises'),
+                subtitle: const Text(
+                  'Visible et louable uniquement par le rôle Entreprise '
+                  '(location longue durée / flotte).',
+                ),
+                value: _companyOnly,
+                onChanged: (v) => setState(() => _companyOnly = v),
+              ),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _description,
@@ -471,6 +517,50 @@ class _CarFormScreenState extends State<CarFormScreen> {
                 ),
                 maxLines: 3,
               ),
+              const SizedBox(height: 22),
+              const Text(
+                'Options supplémentaires',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Proposées au client à la réservation (le prix change selon ses choix).',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 8),
+              for (final extra in MockCars.extras)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  value: _offeredExtraIds.contains(extra.id),
+                  onChanged: (v) => setState(() {
+                    if (v ?? false) {
+                      _offeredExtraIds.add(extra.id);
+                    } else {
+                      _offeredExtraIds.remove(extra.id);
+                    }
+                  }),
+                  title: Text(
+                    extra.label,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    extra.oneShot
+                        ? '${Formatters.moneyShort(extra.pricePerDay)} (forfait)'
+                        : '${Formatters.moneyShort(extra.pricePerDay)} / jour',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
             ],
           ),
         ),

@@ -194,6 +194,7 @@ class _MobileHeader extends StatelessWidget {
             children: [
               const Expanded(child: BrandLogo(compact: true, light: true)),
               CartButton(count: cartCount, dark: true),
+              const NotificationBell(dark: true),
               IconButton(
                 tooltip: 'Mes réservations',
                 onPressed: () => context.push(Routes.reservations),
@@ -438,9 +439,15 @@ class _QuickAccessRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = <(IconData, String, Color, String)>[
       (
+        Icons.auto_awesome_rounded,
+        'IA : trouver ma voiture',
+        AppColors.accent,
+        Routes.recommendQuiz,
+      ),
+      (
         Icons.event_note_rounded,
         'Mes réservations',
-        AppColors.accent,
+        AppColors.info,
         Routes.reservations,
       ),
       (
@@ -455,12 +462,6 @@ class _QuickAccessRow extends StatelessWidget {
         AppColors.gold,
         Routes.auctions,
       ),
-      (
-        Icons.emoji_events_rounded,
-        'Mes enchères',
-        AppColors.danger,
-        Routes.myAuctions,
-      ),
     ];
 
     final isShellRoute =
@@ -472,22 +473,22 @@ class _QuickAccessRow extends StatelessWidget {
       crossAxisCount: Responsive.value(context, mobile: 2, tablet: 4),
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
+      // Plus bas = cellules plus hautes (évite overflow texte 2 lignes).
       childAspectRatio: Responsive.value(
         context,
-        mobile: 2.25,
-        tablet: 1.9,
-        desktop: 2.3,
+        mobile: 1.55,
+        tablet: 1.7,
+        desktop: 2.0,
       ),
       children: [
         for (final (icon, label, color, path) in items)
           AppCard(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
             onTap: () => isShellRoute.contains(path)
                 ? context.go(path)
                 : context.push(path),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -495,16 +496,17 @@ class _QuickAccessRow extends StatelessWidget {
                     color: color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, size: 19, color: color),
+                  child: Icon(icon, size: 18, color: color),
                 ),
+                const Spacer(),
                 Text(
                   label,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w700,
-                    height: 1.25,
+                    height: 1.2,
                     color: AppColors.textPrimary,
                   ),
                 ),
@@ -621,26 +623,31 @@ class _PromoBanner extends StatelessWidget {
     final wide = Responsive.isWide(context);
 
     return Container(
-      height: wide ? 210 : 190,
       decoration: navyBlock(radius: AppTheme.radiusXl),
       clipBehavior: Clip.antiAlias,
       child: Stack(
-        fit: StackFit.expand,
         children: [
-          Opacity(
-            opacity: 0.38,
-            child: CarImage(url: Img.coastRoad, fit: BoxFit.cover),
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.38,
+              child: CarImage(url: Img.coastRoad, fit: BoxFit.cover),
+            ),
           ),
           Padding(
-            padding: EdgeInsets.all(wide ? 30 : 22),
+            padding: EdgeInsets.fromLTRB(
+              wide ? 30 : 20,
+              wide ? 28 : 18,
+              wide ? 30 : 20,
+              wide ? 28 : 18,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 11,
-                    vertical: 6,
+                    vertical: 5,
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.gold,
@@ -656,32 +663,32 @@ class _PromoBanner extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 Text(
                   '-15 % sur les locations\nde 7 jours et plus',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: wide ? 28 : 21,
+                    fontSize: wide ? 28 : 20,
                     height: 1.2,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.8,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   'Valable sur toutes nos agences du littoral.',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.78),
-                    fontSize: 13,
+                    fontSize: 12.5,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 SizedBox(
-                  height: 42,
+                  height: 40,
                   child: ElevatedButton(
                     onPressed: () => context.go(Routes.catalog),
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(0, 42),
+                      minimumSize: const Size(0, 40),
                       backgroundColor: Colors.white,
                       foregroundColor: AppColors.navy,
                     ),
@@ -787,7 +794,12 @@ class _FeaturedSection extends StatelessWidget {
   Widget build(BuildContext context) {
     if (cars.state.isLoading) return const _CarRowSkeleton();
 
-    final list = cars.featured;
+    final busyIds = context.watch<AuctionProvider>().carIdsInActiveAuction;
+    final role = context.watch<AuthProvider>().role;
+    final list = cars.featured
+        .where((c) => !busyIds.contains(c.id))
+        .where((c) => c.isVisibleFor(role))
+        .toList();
     if (list.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -800,7 +812,7 @@ class _FeaturedSection extends StatelessWidget {
           onAction: () => context.go(Routes.catalog),
         ),
         SizedBox(
-          height: 352,
+          height: 420,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: list.length,
@@ -837,7 +849,12 @@ class _RecommendedSection extends StatelessWidget {
       );
     }
 
-    final list = cars.recommended;
+    final busyIds = context.watch<AuctionProvider>().carIdsInActiveAuction;
+    final role = context.watch<AuthProvider>().role;
+    final list = cars.recommended
+        .where((c) => !busyIds.contains(c.id))
+        .where((c) => c.isVisibleFor(role))
+        .toList();
     if (list.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -887,7 +904,7 @@ class _CarRowSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 352,
+      height: 420,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: 3,

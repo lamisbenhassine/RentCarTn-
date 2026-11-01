@@ -259,18 +259,19 @@ class AuctionProvider extends ChangeNotifier {
   /// Véhicules déjà mis en enchère (ouverts / à venir) — pour éviter les doublons.
   Set<String> get carIdsInActiveAuction => {
         for (final a in _auctions)
-          if (a.carId != null &&
-              !a.cancelled &&
+          if (!a.cancelled &&
               (a.isOpen || a.computedStatus == AuctionStatus.aVenir))
-            a.carId!,
+            ...a.allCarIds,
       };
 
   List<Auction> get filteredAuctions {
     var result = _auctions.where((a) {
       if (_query.isNotEmpty) {
         final q = _query.toLowerCase();
-        final haystack = '${a.brand} ${a.model} ${a.year} ${a.city}'
-            .toLowerCase();
+        final lotNames = a.vehicles.map((v) => '${v.brand} ${v.model}').join(' ');
+        final haystack =
+            '${a.title} ${a.brand} ${a.model} ${a.year} ${a.city} $lotNames'
+                .toLowerCase();
         if (!haystack.contains(q)) return false;
       }
       if (_brands.isNotEmpty && !_brands.contains(a.brand)) return false;
@@ -503,18 +504,65 @@ class AuctionProvider extends ChangeNotifier {
     required String description,
     required double startingPrice,
     required Duration duration,
+    DateTime? startAt,
   }) async {
-    final auction = Auction.fromCar(
-      car: car,
-      auctionId: 'auc-${DateTime.now().millisecondsSinceEpoch}',
-      mileage: mileage,
-      condition: condition,
-      hadAccident: hadAccident,
-      extraInfo: extraInfo,
-      description: description,
+    return createLot(
+      items: [
+        (
+          car: car,
+          mileage: mileage,
+          condition: condition,
+          hadAccident: hadAccident,
+          extraInfo: extraInfo,
+          description: description,
+        ),
+      ],
       startingPrice: startingPrice,
       duration: duration,
+      startAt: startAt,
+    );
+  }
+
+  /// Une seule vente : 1 voiture ou un lot de N voitures (même enchère).
+  Future<Auction> createLot({
+    required List<
+        ({
+          Car car,
+          int mileage,
+          VehicleCondition condition,
+          bool hadAccident,
+          String extraInfo,
+          String description,
+        })> items,
+    required double startingPrice,
+    required Duration duration,
+    DateTime? startAt,
+    List<String> images = const [],
+  }) async {
+    if (items.isEmpty) {
+      throw StateError('Au moins un véhicule est requis.');
+    }
+
+    final vehicles = [
+      for (final item in items)
+        AuctionLotVehicle.fromCar(
+          car: item.car,
+          mileage: item.mileage,
+          condition: item.condition,
+          hadAccident: item.hadAccident,
+          extraInfo: item.extraInfo,
+          description: item.description,
+        ),
+    ];
+
+    final auction = Auction.fromCars(
+      auctionId: 'auc-${DateTime.now().millisecondsSinceEpoch}',
+      vehicles: vehicles,
+      startingPrice: startingPrice,
+      duration: duration,
+      startAt: startAt,
       minIncrement: 500,
+      extraImages: images,
     );
     final created = await _repository.create(auction);
     _auctions = [created, ..._auctions];

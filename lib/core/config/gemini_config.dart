@@ -24,6 +24,9 @@ abstract final class GeminiConfig {
       'https://generativelanguage.googleapis.com/v1beta/models/'
       '$modelName:generateContent';
 
+  /// Équipe (scripts tool/) : endpoint du modèle principal.
+  static String get endpoint => endpointFor(model);
+
   /// Clé lue depuis [GeminiSecrets] (fichier local non versionné).
   static String get apiKey => GeminiSecrets.apiKey.trim();
 

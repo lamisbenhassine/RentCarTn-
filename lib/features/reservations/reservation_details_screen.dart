@@ -10,6 +10,7 @@ import '../../data/models/car.dart';
 import '../../data/models/payment.dart';
 import '../../data/models/reservation.dart';
 import '../complaints/urgent_breakdown.dart';
+import '../../state/car_provider.dart';
 import '../../state/reservation_provider.dart';
 import '../../widgets/car_image.dart';
 import '../../widgets/common.dart';
@@ -53,6 +54,7 @@ class ReservationDetailsScreen extends StatelessWidget {
 
     if (confirmed != true || !context.mounted) return;
     context.read<ReservationProvider>().cancel(r.id);
+    await context.read<CarProvider>().releaseBooking(r.car.id, r.range);
     if (!context.mounted) return;
     AppSnack.info(context, 'Réservation ${r.reference} annulée.');
   }

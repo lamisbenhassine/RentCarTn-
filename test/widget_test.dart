@@ -1,11 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:rentcar_tunisia/data/mock/mock_auctions.dart';
 import 'package:rentcar_tunisia/data/mock/mock_cars.dart';
 import 'package:rentcar_tunisia/data/models/auction.dart';
 import 'package:rentcar_tunisia/data/models/car.dart';
 import 'package:rentcar_tunisia/data/models/date_range.dart';
-import 'package:rentcar_tunisia/data/repositories/auction_repository.dart';
+import 'package:rentcar_tunisia/data/repositories/auction_repository_prefs.dart';
 import 'package:rentcar_tunisia/state/auction_provider.dart';
 import 'package:rentcar_tunisia/state/cart_provider.dart';
 
@@ -88,16 +89,18 @@ void main() {
     late AuctionProvider provider;
 
     setUp(() async {
-      provider = AuctionProvider(repository: const AuctionRepository());
+      // API équipe : repository abstrait (prefs en test), offres async.
+      SharedPreferences.setMockInitialValues({});
+      provider = AuctionProvider(repository: PrefsAuctionRepository());
       await provider.load();
     });
 
     tearDown(() => provider.dispose());
 
-    test("refuse une offre inférieure à l'incrément minimal", () {
+    test("refuse une offre inférieure à l'incrément minimal", () async {
       final auction = provider.liveAuctions.first;
 
-      final result = provider.placeBid(
+      final result = await provider.placeBid(
         auction.id,
         auction.minimumNextBid - auction.minIncrement / 2,
       );
@@ -105,10 +108,10 @@ void main() {
       expect(result.ok, isFalse);
     });
 
-    test('accepte une offre valide et place le compte en tête', () {
+    test('accepte une offre valide et place le compte en tête', () async {
       final auction = provider.liveAuctions.first;
 
-      final result = provider.placeBid(auction.id, auction.minimumNextBid);
+      final result = await provider.placeBid(auction.id, auction.minimumNextBid);
 
       expect(result.ok, isTrue);
       final updated = provider.byId(auction.id)!;
@@ -116,11 +119,11 @@ void main() {
       expect(updated.currentPrice, auction.minimumNextBid);
     });
 
-    test('une offre concurrente simulée reprend la tête', () {
+    test('une offre concurrente simulée reprend la tête', () async {
       final auction = provider.liveAuctions.first;
-      provider.placeBid(auction.id, auction.minimumNextBid);
+      await provider.placeBid(auction.id, auction.minimumNextBid);
 
-      final result = provider.simulateCompetingBid(auction.id);
+      final result = await provider.simulateCompetingBid(auction.id);
 
       expect(result.ok, isTrue);
       final updated = provider.byId(auction.id)!;
@@ -128,11 +131,11 @@ void main() {
       expect(updated.highestBid!.isSimulated, isTrue);
     });
 
-    test('aucune offre acceptée après la clôture', () {
+    test('aucune offre acceptée après la clôture', () async {
       final auction = provider.liveAuctions.first;
-      provider.simulateClose(auction.id);
+      await provider.simulateClose(auction.id);
 
-      final result = provider.placeBid(auction.id, 999999);
+      final result = await provider.placeBid(auction.id, 999999);
 
       expect(result.ok, isFalse);
       expect(provider.byId(auction.id)!.isOpen, isFalse);

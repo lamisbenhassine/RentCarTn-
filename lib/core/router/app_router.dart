@@ -27,9 +27,11 @@ import '../../features/complaints/urgent_breakdown.dart';
 import '../../features/catalog/car_form_screen.dart';
 import '../../features/catalog/catalog_screen.dart';
 import '../../features/catalog/manage_cars_screen.dart';
+import '../../features/catalog/recommend_quiz_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../data/models/learning.dart';
 import '../../features/learning/exam_form_screen.dart';
+import '../../features/notifications/notifications_screen.dart';
 import '../../features/learning/learning_dashboard_screen.dart';
 import '../../features/learning/manage_exams_screen.dart';
 import '../../features/learning/manage_signs_screen.dart';
@@ -57,6 +59,8 @@ class Routes {
   static const home = '/accueil';
   static const catalog = '/catalogue';
   static const manageCars = '/catalogue/gerer';
+  /// Hors shell `/catalogue` (évite le 404 go_router sur les sous-chemins).
+  static const recommendQuiz = '/recommandation';
   static const auctions = '/encheres';
   static const learning = '/code-de-la-route';
   static const profile = '/profil';
@@ -73,6 +77,7 @@ class Routes {
   static const reservations = '/mes-reservations';
   static const myAuctions = '/mes-encheres';
   static const fleet = '/gestion-flotte';
+  static const notifications = '/notifications';
   static const signs = '/code-de-la-route/panneaux';
   static const manageSigns = '/code-de-la-route/panneaux/gerer';
   static const manageExams = '/code-de-la-route/examens/gerer';
@@ -126,6 +131,9 @@ GoRouter buildRouter(AuthProvider auth) {
     initialLocation: Routes.onboarding,
     refreshListenable: auth,
     redirect: (context, state) {
+      // Attendre la restauration de session (sqflite / prefs).
+      if (auth.restoring) return null;
+
       final loggedIn = auth.isLoggedIn;
       final path = state.matchedLocation;
       const publicPaths = {
@@ -146,6 +154,19 @@ GoRouter buildRouter(AuthProvider auth) {
       if (path == Routes.verifyEmail) return loggedIn ? Routes.home : null;
 
       if (loggedIn && isPublic) return Routes.home;
+
+      // Création / modification réservées à l'admin.
+      // User & Company peuvent consulter le parc et la flotte (lecture seule).
+      final needsAdmin = path == Routes.manageSigns ||
+          path == Routes.manageExams ||
+          path == '/catalogue/nouveau' ||
+          path.endsWith('/modifier') && path.startsWith('/catalogue/') ||
+          path.startsWith('/code-de-la-route/panneaux/nouveau') ||
+          path.contains('/panneaux/') && path.endsWith('/modifier') ||
+          path.startsWith('/code-de-la-route/examens/nouveau') ||
+          path.contains('/examens/') && path.endsWith('/modifier');
+      if (needsAdmin && !auth.isAdmin) return Routes.home;
+
       return null;
     },
     routes: [
@@ -201,6 +222,11 @@ GoRouter buildRouter(AuthProvider auth) {
         ],
       ),
 
+      GoRoute(
+        path: Routes.recommendQuiz,
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const RecommendQuizScreen(),
+      ),
       GoRoute(
         path: Routes.manageCars,
         parentNavigatorKey: _rootKey,
@@ -308,6 +334,11 @@ GoRouter buildRouter(AuthProvider auth) {
         parentNavigatorKey: _rootKey,
         builder: (_, state) =>
             ComplaintDetailsScreen(complaintId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: Routes.notifications,
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const NotificationsScreen(),
       ),
       GoRoute(
         path: Routes.signs,

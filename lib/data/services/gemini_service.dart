@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../core/config/gemini_config.dart';
+import '../models/auction.dart';
+import '../models/car.dart';
 import '../models/exam.dart';
 import '../models/complaint.dart';
 import '../models/learning.dart';
@@ -101,6 +103,31 @@ class GeminiTurn {
       return null;
     }
   }
+}
+
+/// Estimation IA du prix de départ d'une enchère (marché Tunisie).
+class GeminiPriceEstimate {
+  const GeminiPriceEstimate.ok({
+    required this.startingPrice,
+    required this.rationale,
+    this.minPrice,
+    this.maxPrice,
+  }) : ok = true,
+       message = null;
+
+  const GeminiPriceEstimate.fail(this.message)
+    : ok = false,
+      startingPrice = null,
+      rationale = null,
+      minPrice = null,
+      maxPrice = null;
+
+  final bool ok;
+  final String? message;
+  final double? startingPrice;
+  final String? rationale;
+  final double? minPrice;
+  final double? maxPrice;
 }
 
 /// Résultat de génération de questions d'examen.
@@ -348,6 +375,185 @@ class GeminiService {
     }
   }
 
+  /// Estime un prix de départ d'enchère (TND) pour un véhicule du parc.
+  Future<GeminiPriceEstimate> estimateAuctionStartPrice({
+    required Car car,
+    required int mileage,
+    required VehicleCondition condition,
+    required bool hadAccident,
+    String extraInfo = '',
+    String description = '',
+  }) async {
+    if (!GeminiConfig.isConfigured) {
+      return const GeminiPriceEstimate.fail(
+        'Clé API manquante. Configure gemini_secrets.dart.',
+      );
+    }
+    if (mileage < 0) {
+      return const GeminiPriceEstimate.fail('Kilométrage invalide.');
+    }
+
+    final age = DateTime.now().year - car.year;
+    final prompt =
+        '''
+Tu es un expert du marché automobile d'occasion en Tunisie (TND).
+Estime un PRIX DE DÉPART réaliste pour une vente AUX ENCHÈRES
+(prix d'ouverture, légèrement sous la valeur marché pour attirer des enchères).
+
+Véhicule :
+- Marque / modèle : ${car.brand} ${car.model}
+- Année : ${car.year} (âge ≈ $age ans)
+- Catégorie location : ${car.category.label}
+- Carburant : ${car.fuel.label}
+- Boîte : ${car.transmission.label}
+- Places / portes : ${car.seats} / ${car.doors}
+- Ville : ${car.city}
+- Prix location / jour (indicatif flotte) : ${car.pricePerDay.toStringAsFixed(0)} TND
+- Climatisation : ${car.airConditioning ? 'oui' : 'non'}
+
+Fiche enchère :
+- Kilométrage : $mileage km
+- État déclaré : ${condition.label}
+- Accident déclaré : ${hadAccident ? 'oui' : 'non'}
+- Infos supplémentaires : ${extraInfo.isEmpty ? 'aucune' : extraInfo}
+- Description : ${description.isEmpty ? car.description : description}
+
+Règles :
+- Devise : dinars tunisiens (TND), nombres entiers.
+- startingPrice = prix d'ouverture recommandé (enchères).
+- minPrice / maxPrice = fourchette de valeur marché estimée.
+- rationale = 2–3 phrases courtes en français, concrètes (km, âge, état, marché TN).
+- Pas de symbole monétaire dans les champs numériques.
+- Réponds UNIQUEMENT en JSON valide, sans markdown.
+
+FORMAT :
+{
+  "startingPrice": 18500,
+  "minPrice": 17000,
+  "maxPrice": 23000,
+  "rationale": "..."
+}
+''';
+
+    try {
+      // Budget élevé + thinking désactivé : sinon les modèles « thinking »
+      // consomment maxOutputTokens et renvoient un texte vide (illisible).
+      var response = await _post(
+        prompt: prompt,
+        maxOutputTokens: 4096,
+        temperature: 0.2,
+        jsonMode: true,
+        thinkingBudget: 0,
+      );
+
+      // Second essai sans JSON forcé si la 1ʳᵉ réponse est vide / illisible.
+      if (response.ok && _parsePriceEstimate(response.text) == null) {
+        response = await _post(
+          prompt: '$prompt\n\nRéponds uniquement avec le JSON, rien d\'autre.',
+          maxOutputTokens: 4096,
+          temperature: 0.1,
+          jsonMode: false,
+          thinkingBudget: 0,
+        );
+      }
+
+      if (!response.ok) {
+        return GeminiPriceEstimate.fail(response.error!);
+      }
+      if (response.text.trim().isEmpty) {
+        return const GeminiPriceEstimate.fail(
+          'Gemini a renvoyé une réponse vide. Réessaie dans un instant.',
+        );
+      }
+      final parsed = _parsePriceEstimate(response.text);
+      if (parsed == null) {
+        return const GeminiPriceEstimate.fail(
+          'Réponse Gemini illisible. Réessaie l\'estimation.',
+        );
+      }
+      return parsed;
+    } on Exception catch (e) {
+      return GeminiPriceEstimate.fail('Estimation impossible : $e');
+    }
+  }
+
+  GeminiPriceEstimate? _parsePriceEstimate(String raw) {
+    var text = raw.trim();
+    if (text.isEmpty) return null;
+    if (text.startsWith('```')) {
+      text = text
+          .replaceFirst(RegExp(r'^```(?:json)?\s*', multiLine: true), '')
+          .replaceFirst(RegExp(r'\s*```$'), '')
+          .trim();
+    }
+    final start = text.indexOf('{');
+    final end = text.lastIndexOf('}');
+    if (start != -1 && end != -1 && end > start) {
+      final jsonSlice = text.substring(start, end + 1);
+      try {
+        final map = jsonDecode(jsonSlice) as Map<String, dynamic>;
+        final starting = _asDouble(
+          map['startingPrice'] ??
+              map['starting_price'] ??
+              map['prixDepart'] ??
+              map['prix'],
+        );
+        if (starting != null && starting > 0) {
+          return _okEstimate(
+            starting: starting,
+            minPrice: _asDouble(map['minPrice'] ?? map['min_price']),
+            maxPrice: _asDouble(map['maxPrice'] ?? map['max_price']),
+            rationale:
+                ((map['rationale'] ?? map['explication'] ?? '') as Object?)
+                    .toString()
+                    .trim(),
+          );
+        }
+      } catch (_) {
+        // tombe sur le fallback texte
+      }
+    }
+
+    // Fallback : premier nombre plausible dans le texte (TND).
+    final match = RegExp(
+      r'(\d[\d\s]{2,})\s*(?:TND|DT)?',
+      caseSensitive: false,
+    ).firstMatch(text);
+    if (match == null) return null;
+    final starting = _asDouble(match.group(1));
+    if (starting == null || starting < 500) return null;
+    return _okEstimate(
+      starting: starting,
+      rationale: 'Estimation extraite de la réponse Gemini.',
+    );
+  }
+
+  static double? _asDouble(Object? value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    final cleaned = value
+        .toString()
+        .replaceAll(RegExp(r'[^\d.,]'), '')
+        .replaceAll(' ', '')
+        .replaceAll(',', '.');
+    return double.tryParse(cleaned);
+  }
+
+  static GeminiPriceEstimate _okEstimate({
+    required double starting,
+    double? minPrice,
+    double? maxPrice,
+    String rationale = '',
+  }) {
+    final rounded = (starting / 100).round() * 100.0;
+    return GeminiPriceEstimate.ok(
+      startingPrice: rounded < 500 ? 500 : rounded,
+      minPrice: minPrice,
+      maxPrice: maxPrice,
+      rationale: rationale,
+    );
+  }
+
   /// Génère un examen QCM à partir des panneaux + règles pédagogiques.
   Future<GeminiExamResult> generateExam({
     required List<RoadSign> signs,
@@ -474,6 +680,7 @@ $rulesBlock
     required double temperature,
     bool jsonMode = false,
     Duration timeout = GeminiConfig.timeout,
+    int? thinkingBudget,
   }) async {
     // Modèles épuisés aujourd'hui (429) : on ne les rappelle pas.
     final models = GeminiQuota.instance.available(GeminiConfig.allModels);
@@ -484,12 +691,9 @@ $rulesBlock
       return (ok: false, text: '', error: quotaMessage, raw: null);
     }
 
-    final generationConfig = <String, Object?>{
-      'temperature': temperature,
-      'maxOutputTokens': maxOutputTokens,
-      if (jsonMode) 'responseMimeType': 'application/json',
-    };
-    final body = jsonEncode({
+    // [thinkingBudget] (équipe) : 0 = pas de « thinking » (évite les réponses
+    // vides sur Flash / Pro récents). Retiré si le modèle le refuse (400).
+    String encodeBody({required bool withThinking}) => jsonEncode({
       if (systemInstruction != null)
         'systemInstruction': {
           'parts': [
@@ -506,24 +710,40 @@ $rulesBlock
             },
           ],
       'tools': ?tools,
-      'generationConfig': generationConfig,
+      'generationConfig': {
+        'temperature': temperature,
+        'maxOutputTokens': maxOutputTokens,
+        if (jsonMode) 'responseMimeType': 'application/json',
+        if (withThinking && thinkingBudget != null)
+          'thinkingConfig': {'thinkingBudget': thinkingBudget},
+      },
     });
 
     String? lastError;
 
-    for (final modelName in models) {
-      final http.Response response;
-      try {
-        response = await _client
+    Future<http.Response> send(String model, {required bool withThinking}) =>
+        _client
             .post(
-              Uri.parse(GeminiConfig.endpointFor(modelName)),
+              Uri.parse(GeminiConfig.endpointFor(model)),
               headers: {
                 'Content-Type': 'application/json',
                 'x-goog-api-key': GeminiConfig.apiKey,
               },
-              body: body,
+              body: encodeBody(withThinking: withThinking),
             )
             .timeout(timeout);
+
+    for (final modelName in models) {
+      http.Response response;
+      try {
+        response = await send(modelName, withThinking: true);
+        // Certains modèles refusent thinkingBudget — 1 nouvel essai sans.
+        if (response.statusCode == 400 && thinkingBudget != null) {
+          debugPrint(
+            '[Gemini] $modelName : 400 avec thinking, nouvel essai sans',
+          );
+          response = await send(modelName, withThinking: false);
+        }
       } on TimeoutException {
         debugPrint(
           '[Gemini] $modelName : pas de réponse en ${timeout.inSeconds} s, '
@@ -539,12 +759,15 @@ $rulesBlock
       if (code == 200) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
         final text = _extractText(json);
-        // Réponse sans texte normale si Gemini appelle une fonction.
-        if (text.isEmpty && !response.body.contains('"functionCall"')) {
+        // Réponse vide (souvent MAX_TOKENS à cause du thinking) → modèle
+        // suivant. Sans texte mais avec un appel de fonction : normal.
+        if (text.trim().isEmpty && !response.body.contains('"functionCall"')) {
           debugPrint(
             '[Gemini] $modelName : réponse vide '
-            '(finishReason=${_finishReason(json)})',
+            '(finishReason=${_finishReason(json)}), modèle suivant…',
           );
+          lastError = 'Gemini a renvoyé une réponse vide.';
+          continue;
         }
         return (ok: true, text: text, error: null, raw: json);
       }
@@ -609,6 +832,7 @@ $rulesBlock
     _cache[key] = value;
   }
 
+  @visibleForTesting
   static void clearCache() => _cache.clear();
 
   /// Tous les modèles ont atteint leur quota gratuit du jour.
