@@ -56,6 +56,8 @@ class Reservation {
     this.notes = '',
     this.secondDriver = false,
     this.cancelReason,
+    this.returnedLate = false,
+    this.justifiedComplaints = 0,
   });
 
   final String id;
@@ -79,6 +81,18 @@ class Reservation {
   final bool secondDriver;
   final String? cancelReason;
 
+  /// Véhicule rendu après l'heure prévue (score de confiance : -10).
+  final bool returnedLate;
+
+  /// Réclamations de l'agence jugées fondées contre le client (-15 chacune).
+  final int justifiedComplaints;
+
+  /// Location terminée sans retard ni réclamation (score : +5).
+  bool get completedWithoutIssue =>
+      status == ReservationStatus.terminee &&
+      !returnedLate &&
+      justifiedComplaints == 0;
+
   int get days => range.days;
   double get carTotal => car.pricePerDay * days;
   double get extrasTotal =>
@@ -99,6 +113,8 @@ class Reservation {
     String? contractNumber,
     String? cancelReason,
     DateRange? range,
+    bool? returnedLate,
+    int? justifiedComplaints,
   }) {
     return Reservation(
       id: id,
@@ -121,6 +137,8 @@ class Reservation {
       notes: notes,
       secondDriver: secondDriver,
       cancelReason: cancelReason ?? this.cancelReason,
+      returnedLate: returnedLate ?? this.returnedLate,
+      justifiedComplaints: justifiedComplaints ?? this.justifiedComplaints,
     );
   }
 }

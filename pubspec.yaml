@@ -31,6 +31,23 @@ dependencies:
 
   # Upload photo véhicule (galerie / fichiers — web + mobile)
   image_picker: ^1.1.2
+  # Photo de profil : choix « Galerie » (photo picker) ou « Fichiers »
+  # (sélecteur de documents Android) via useAndroidPhotoPicker.
+  image_picker_android: ^0.8.13+25
+  image_picker_platform_interface: ^2.11.2
+
+  # Hachage SHA-256 des mots de passe (table users)
+  crypto: ^3.0.8
+
+  # Position GPS (inscription, profil : agence la plus proche)
+  geolocator: ^14.1.2
+  google_sign_in: ^7.2.0
+  google_mlkit_text_recognition: ^0.17.1
+  flutter_local_notifications: ^22.3.3
+  timezone: ^0.11.2
+  path_provider: ^2.1.6
+  url_launcher: ^6.3.3
+  speech_to_text: ^7.5.0
 
 dev_dependencies:
   flutter_test:
@@ -40,3 +57,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # Traductions FR / EN / AR (gen-l10n, voir l10n.yaml et lib/l10n/*.arb)
+  generate: true

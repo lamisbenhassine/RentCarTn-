@@ -124,7 +124,7 @@ class MockReservations {
           maskedCard: '•••• 4821',
         ),
       ),
-      
+
       Reservation(
         id: 'res-005',
         reference: 'RC-2026-10101',
@@ -150,6 +150,8 @@ class MockReservations {
           date: _d(-78),
           maskedCard: '•••• 1194',
         ),
+        // Démo score de confiance : véhicule rendu en retard à Sfax.
+        returnedLate: true,
       ),
     ];
   }

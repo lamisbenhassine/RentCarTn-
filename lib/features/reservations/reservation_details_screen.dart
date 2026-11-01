@@ -9,6 +9,7 @@ import '../../core/utils/responsive.dart';
 import '../../data/models/car.dart';
 import '../../data/models/payment.dart';
 import '../../data/models/reservation.dart';
+import '../complaints/urgent_breakdown.dart';
 import '../../state/reservation_provider.dart';
 import '../../widgets/car_image.dart';
 import '../../widgets/common.dart';
@@ -283,6 +284,11 @@ class ReservationDetailsScreen extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 20),
+            // Module Réclamations : panne urgente pendant la location.
+            if (r.status == ReservationStatus.enCours) ...[
+              UrgentBreakdownButton(reservationId: r.id),
+              const SizedBox(height: 14),
+            ],
             if (r.contractNumber != null)
               SizedBox(
                 width: double.infinity,
@@ -303,6 +309,19 @@ class ReservationDetailsScreen extends StatelessWidget {
                 ),
               ),
             ],
+            // Module Réclamations : signaler un problème sur cette location
+            // (la réservation est pré-sélectionnée dans le formulaire).
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => context.push(
+                  Routes.complaintNewFor(reservationId: r.id),
+                ),
+                icon: const Icon(Icons.report_problem_outlined, size: 18),
+                label: const Text('Signaler un problème'),
+              ),
+            ),
             if (canCancel) ...[
               const SizedBox(height: 10),
               SizedBox(

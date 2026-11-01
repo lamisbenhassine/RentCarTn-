@@ -1,9 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/mock/mock_images.dart';
+import '../../l10n/l10n.dart';
 import '../../widgets/car_image.dart';
 import '../shell/main_shell.dart';
 
@@ -47,12 +49,13 @@ class AuthScaffold extends StatelessWidget {
                       context.canPop() ? context.pop() : context.go('/'),
                   icon: const Icon(Icons.arrow_back_rounded),
                   style: IconButton.styleFrom(
-                    backgroundColor: AppColors.surfaceAlt,
-                    side: const BorderSide(color: AppColors.border),
+                    backgroundColor: context.cs.surface,
+                    side: BorderSide(color: context.cs.outlineVariant),
                   ),
                 ),
               ),
-            const BrandLogo(),
+            // Texte du logo en blanc sur fond sombre.
+            BrandLogo(light: Theme.of(context).brightness == Brightness.dark),
             const SizedBox(height: 30),
             Text(title, style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 8),
@@ -66,16 +69,18 @@ class AuthScaffold extends StatelessWidget {
 
     if (!wide) {
       return Scaffold(
-        backgroundColor: AppColors.surface,
+        backgroundColor: context.cs.surfaceContainerLow,
         body: SafeArea(child: form),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.cs.surfaceContainerLow,
       body: Row(
         children: [
-          Expanded(child: SafeArea(child: Center(child: form))),
+          Expanded(
+            child: SafeArea(child: Center(child: form)),
+          ),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -98,16 +103,18 @@ class AuthScaffold extends StatelessWidget {
                       ),
                     ),
                     Align(
-                      alignment: Alignment.bottomLeft,
+                      // Bas « début de ligne » : à gauche en fr/en, à
+                      // droite en arabe.
+                      alignment: AlignmentDirectional.bottomStart,
                       child: Padding(
                         padding: const EdgeInsets.all(36),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Votre mobilité,\nnotre métier.',
-                              style: TextStyle(
+                            Text(
+                              context.l10n.authBrandTagline,
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 34,
                                 height: 1.15,
@@ -117,8 +124,7 @@ class AuthScaffold extends StatelessWidget {
                             ),
                             const SizedBox(height: 14),
                             Text(
-                              "Location, enchères et apprentissage du code de "
-                              "la route réunis dans une seule plateforme.",
+                              context.l10n.authBrandDescription,
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.75),
                                 fontSize: 15,
@@ -127,12 +133,12 @@ class AuthScaffold extends StatelessWidget {
                             ),
                             const SizedBox(height: 26),
                             Row(
-                              children: const [
-                                _Stat('15+', 'Véhicules'),
-                                SizedBox(width: 28),
-                                _Stat('12', 'Villes'),
-                                SizedBox(width: 28),
-                                _Stat('4.8', 'Note moyenne'),
+                              children: [
+                                _Stat('15+', context.l10n.authStatCars),
+                                const SizedBox(width: 28),
+                                _Stat('12', context.l10n.authStatCities),
+                                const SizedBox(width: 28),
+                                _Stat('4.8', context.l10n.authStatRating),
                               ],
                             ),
                           ],

@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../assistant/assistant_screen.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -21,6 +22,7 @@ import '../../widgets/car_card.dart';
 import '../../widgets/car_image.dart';
 import '../../widgets/common.dart';
 import '../../widgets/countdown.dart';
+import '../../widgets/licence_expiry_banner.dart';
 import '../shell/main_shell.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -84,6 +86,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.surface,
+      // Assistant RentCar (chatbot Gemini).
+      floatingActionButton: const AssistantFab(),
       body: RefreshIndicator(
         onRefresh: () => context.read<CarProvider>().load(force: true),
         child: CustomScrollView(
@@ -117,6 +121,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 22),
                       ],
+                      // Alerte permis (≤ 30 jours ou expiré).
+                      if (auth.user != null)
+                        LicenceExpiryBanner(user: auth.user!),
                       _SearchPanel(
                         controller: _searchCtrl,
                         city: _pickupCity,

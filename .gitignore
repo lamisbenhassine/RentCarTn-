@@ -49,5 +49,11 @@ app.*.map.json
 
 # Secrets Gemini (ne jamais committer la clé API)
 lib/core/config/gemini_secrets.dart
+
+# Secrets EmailJS (envoi du code OTP par e-mail)
+lib/core/config/emailjs_secrets.dart
+
+# Secrets Google Sign-In (Web Client ID)
+lib/core/config/google_secrets.dart
 .env
 .env.*

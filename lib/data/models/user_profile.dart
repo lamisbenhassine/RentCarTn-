@@ -14,6 +14,11 @@ class UserProfile {
     this.avatarUrl,
     this.memberSince,
     this.publicUsername = 'Utilisateur_TN',
+    this.latitude,
+    this.longitude,
+    this.licenceExpiry,
+    this.trustScore = 50,
+    this.emailVerified = false,
   });
 
   final String id;
@@ -31,6 +36,20 @@ class UserProfile {
 
   /// Pseudonyme affiché dans les enchères publiques.
   final String publicUsername;
+
+  /// Dernière position connue (optionnelle).
+  final double? latitude;
+  final double? longitude;
+
+  /// Date d'expiration du permis de conduire.
+  final DateTime? licenceExpiry;
+
+  /// Score de confiance du client (0 à 100).
+  final int trustScore;
+
+  /// `true` une fois le code reçu par e-mail saisi (verify_email_screen).
+  /// Tant que `false`, le routeur bloque l'accès à l'application.
+  final bool emailVerified;
 
   String get fullName => '$firstName $lastName';
 
@@ -52,6 +71,12 @@ class UserProfile {
     DateTime? birthDate,
     String? avatarUrl,
     String? publicUsername,
+    double? latitude,
+    double? longitude,
+    DateTime? licenceExpiry,
+    int? trustScore,
+    bool? emailVerified,
+    bool clearAvatar = false,
   }) {
     return UserProfile(
       id: id,
@@ -64,9 +89,14 @@ class UserProfile {
       city: city ?? this.city,
       address: address ?? this.address,
       birthDate: birthDate ?? this.birthDate,
-      avatarUrl: avatarUrl ?? this.avatarUrl,
+      avatarUrl: clearAvatar ? null : (avatarUrl ?? this.avatarUrl),
       memberSince: memberSince,
       publicUsername: publicUsername ?? this.publicUsername,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      licenceExpiry: licenceExpiry ?? this.licenceExpiry,
+      trustScore: trustScore ?? this.trustScore,
+      emailVerified: emailVerified ?? this.emailVerified,
     );
   }
 }

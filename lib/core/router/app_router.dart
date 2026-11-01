@@ -1,22 +1,29 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/models/complaint_draft.dart';
 import '../../data/models/reservation.dart';
 import '../../features/auctions/auction_details_screen.dart';
 import '../../features/auctions/auction_result_screen.dart';
 import '../../features/auctions/auctions_screen.dart';
 import '../../features/auctions/fleet_management_screen.dart';
 import '../../features/auctions/my_auctions_screen.dart';
+import '../../features/assistant/assistant_screen.dart';
 import '../../features/auth/forgot_password_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/onboarding_screen.dart';
 import '../../features/auth/register_screen.dart';
+import '../../features/auth/verify_email_screen.dart';
 import '../../features/booking/checkout_screen.dart';
 import '../../features/booking/confirmation_screen.dart';
 import '../../features/booking/contract_screen.dart';
 import '../../features/booking/receipt_screen.dart';
 import '../../features/cart/cart_screen.dart';
 import '../../features/catalog/car_details_screen.dart';
+import '../../features/complaints/complaint_details_screen.dart';
+import '../../features/complaints/complaint_form_screen.dart';
+import '../../features/complaints/my_complaints_screen.dart';
+import '../../features/complaints/urgent_breakdown.dart';
 import '../../features/catalog/car_form_screen.dart';
 import '../../features/catalog/catalog_screen.dart';
 import '../../features/catalog/manage_cars_screen.dart';
@@ -45,6 +52,7 @@ class Routes {
   static const login = '/connexion';
   static const register = '/inscription';
   static const forgotPassword = '/mot-de-passe-oublie';
+  static const verifyEmail = '/verifier-email';
 
   static const home = '/accueil';
   static const catalog = '/catalogue';
@@ -54,6 +62,11 @@ class Routes {
   static const profile = '/profil';
 
   static const editProfile = '/profil/modifier';
+
+  /// Réclamations (module Réclamations, front office).
+  static const complaints = '/reclamations';
+  static const complaintNew = '/reclamations/nouvelle';
+  static const assistant = '/assistant';
   static const cart = '/panier';
   static const checkout = '/paiement';
   static const confirmation = '/confirmation';
@@ -70,6 +83,17 @@ class Routes {
   static String auctionResult(String id) => '/enchere/$id/resultat';
   static String quiz(String id) => '/code-de-la-route/quiz/$id';
   static String reservation(String id) => '/mes-reservations/$id';
+
+  /// Nouvelle réclamation, éventuellement liée à une réservation.
+  static String complaintNewFor({String? reservationId}) =>
+      reservationId == null
+      ? complaintNew
+      : '$complaintNew?reservation=${Uri.encodeQueryComponent(reservationId)}';
+  static String complaintEdit(String id) => '/reclamations/$id/modifier';
+  static String complaint(String id) => '/reclamations/$id';
+
+  /// Après une alerte « Panne urgente » : appel + conseils de sécurité.
+  static String complaintUrgentSent(String id) => '/reclamations/$id/urgence';
   static String contract(String id) => '/contrat/$id';
   static String receipt(String id) => '/recu/$id';
 
@@ -113,6 +137,14 @@ GoRouter buildRouter(AuthProvider auth) {
       final isPublic = publicPaths.contains(path);
 
       if (!loggedIn && !isPublic) return Routes.onboarding;
+
+      // Connecté mais e-mail non vérifié (inscription, connexion ou session
+      // restaurée) : seul l'écran de vérification est accessible.
+      if (auth.needsEmailVerification) {
+        return path == Routes.verifyEmail ? null : Routes.verifyEmail;
+      }
+      if (path == Routes.verifyEmail) return loggedIn ? Routes.home : null;
+
       if (loggedIn && isPublic) return Routes.home;
       return null;
     },
@@ -122,13 +154,14 @@ GoRouter buildRouter(AuthProvider auth) {
         builder: (_, _) => const OnboardingScreen(),
       ),
       GoRoute(path: Routes.login, builder: (_, _) => const LoginScreen()),
-      GoRoute(
-        path: Routes.register,
-        builder: (_, _) => const RegisterScreen(),
-      ),
+      GoRoute(path: Routes.register, builder: (_, _) => const RegisterScreen()),
       GoRoute(
         path: Routes.forgotPassword,
         builder: (_, _) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: Routes.verifyEmail,
+        builder: (_, _) => const VerifyEmailScreen(),
       ),
 
       ShellRoute(
@@ -181,9 +214,7 @@ GoRouter buildRouter(AuthProvider auth) {
       GoRoute(
         path: '/catalogue/:id/modifier',
         parentNavigatorKey: _rootKey,
-        builder: (_, state) => CarFormScreen(
-          carId: state.pathParameters['id'],
-        ),
+        builder: (_, state) => CarFormScreen(carId: state.pathParameters['id']),
       ),
       GoRoute(
         path: '/voiture/:id',
@@ -216,8 +247,9 @@ GoRouter buildRouter(AuthProvider auth) {
       GoRoute(
         path: '/mes-reservations/:id',
         parentNavigatorKey: _rootKey,
-        builder: (_, state) =>
-            ReservationDetailsScreen(reservationId: state.pathParameters['id']!),
+        builder: (_, state) => ReservationDetailsScreen(
+          reservationId: state.pathParameters['id']!,
+        ),
       ),
       GoRoute(
         path: '/contrat/:id',
@@ -235,6 +267,47 @@ GoRouter buildRouter(AuthProvider auth) {
         path: Routes.editProfile,
         parentNavigatorKey: _rootKey,
         builder: (_, _) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: Routes.assistant,
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const AssistantScreen(),
+      ),
+      GoRoute(
+        path: Routes.complaints,
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const MyComplaintsScreen(),
+      ),
+      GoRoute(
+        path: Routes.complaintNew,
+        parentNavigatorKey: _rootKey,
+        builder: (_, state) => ComplaintFormScreen(
+          reservationId: state.uri.queryParameters['reservation'],
+          // « Modifier » depuis l'assistant : formulaire pré-rempli.
+          draft: state.extra is ComplaintDraft
+              ? state.extra! as ComplaintDraft
+              : null,
+        ),
+      ),
+      GoRoute(
+        path: '/reclamations/:id/modifier',
+        parentNavigatorKey: _rootKey,
+        builder: (_, state) =>
+            ComplaintFormScreen(complaintId: state.pathParameters['id']),
+      ),
+      GoRoute(
+        path: '/reclamations/:id/urgence',
+        parentNavigatorKey: _rootKey,
+        builder: (_, state) =>
+            UrgentSentScreen(complaintId: state.pathParameters['id']!),
+      ),
+      // Après « /reclamations/nouvelle » (sinon « nouvelle » serait pris
+      // pour un id).
+      GoRoute(
+        path: '/reclamations/:id',
+        parentNavigatorKey: _rootKey,
+        builder: (_, state) =>
+            ComplaintDetailsScreen(complaintId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: Routes.signs,
@@ -266,9 +339,8 @@ GoRouter buildRouter(AuthProvider auth) {
       GoRoute(
         path: '/code-de-la-route/panneaux/:id/modifier',
         parentNavigatorKey: _rootKey,
-        builder: (_, state) => SignFormScreen(
-          signId: state.pathParameters['id'],
-        ),
+        builder: (_, state) =>
+            SignFormScreen(signId: state.pathParameters['id']),
       ),
       GoRoute(
         path: Routes.manageExams,
@@ -283,9 +355,8 @@ GoRouter buildRouter(AuthProvider auth) {
       GoRoute(
         path: '/code-de-la-route/examens/:id/modifier',
         parentNavigatorKey: _rootKey,
-        builder: (_, state) => ExamFormScreen(
-          examId: state.pathParameters['id'],
-        ),
+        builder: (_, state) =>
+            ExamFormScreen(examId: state.pathParameters['id']),
       ),
       GoRoute(
         path: Routes.rules,
@@ -320,9 +391,8 @@ GoRouter buildRouter(AuthProvider auth) {
         builder: (_, _) => const FleetManagementScreen(),
       ),
     ],
-    errorBuilder: (context, state) => _RouteErrorScreen(
-      location: state.uri.toString(),
-    ),
+    errorBuilder: (context, state) =>
+        _RouteErrorScreen(location: state.uri.toString()),
   );
 }
 

@@ -21,6 +21,8 @@ class MockUsers {
     birthDate: DateTime(1994, 6, 12),
     memberSince: DateTime(2023, 2, 18),
     publicUsername: 'Sofien_TN',
+    // demo@rentcar.tn n'est pas une vraie boîte : déjà vérifié.
+    emailVerified: true,
   );
 
   /// Comptes créés pendant la session (inscription simulée).

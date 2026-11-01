@@ -11,7 +11,9 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../core/utils/validators.dart';
+import '../../data/models/licence_status.dart';
 import '../../data/models/payment.dart';
+import '../../data/models/user_profile.dart';
 import '../../state/auth_provider.dart';
 import '../../state/cart_provider.dart';
 import '../../state/reservation_provider.dart';
@@ -126,6 +128,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     final cart = context.read<CartProvider>();
+    // Sécurité : jamais de paiement avec un permis expiré.
+    if (_licenceProblem(context.read<AuthProvider>().user, cart) != null) {
+      setState(() {});
+      return;
+    }
     final validation = cart.validateForCheckout();
     if (!validation.ok) {
       AppSnack.error(context, validation.message);
@@ -176,9 +183,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     context.pushReplacement(Routes.confirmation, extra: created);
   }
 
+  /// Message de blocage si le permis est expiré, ou s'il expire avant la
+  /// fin d'une location du panier. `null` si la réservation est possible.
+  String? _licenceProblem(UserProfile? user, CartProvider cart) {
+    if (user == null || user.licenceExpiry == null || cart.isEmpty) {
+      return null;
+    }
+    final date = Formatters.dateLong(user.licenceExpiry!);
+    if (user.licenceStatus() == LicenceStatus.expired) {
+      return 'Votre permis de conduire a expiré le $date. Mettez-le à jour '
+          'pour finaliser votre réservation.';
+    }
+    final lastDay = cart.items
+        .map((i) => i.range.end)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+    if (!user.licenceValidUntil(lastDay)) {
+      return 'Votre permis expire le $date, avant la fin de votre location '
+          '(${Formatters.dateLong(lastDay)}). Mettez-le à jour pour '
+          'finaliser votre réservation.';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
+    final user = context.watch<AuthProvider>().user;
     final wide = Responsive.isWide(context);
 
     if (cart.isEmpty && !_processing) {
@@ -191,6 +221,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           message: 'Ajoutez un véhicule avant de passer au paiement.',
           actionLabel: 'Voir le catalogue',
           onAction: () => context.go(Routes.catalog),
+        ),
+      );
+    }
+
+    // Permis expiré : réservation bloquée. Le panier est conservé ; au
+    // retour de « Modifier mon profil », l'écran se débloque tout seul.
+    final licenceProblem = _processing ? null : _licenceProblem(user, cart);
+    if (licenceProblem != null) {
+      return Scaffold(
+        backgroundColor: AppColors.surface,
+        appBar: appScreenBar(context, title: 'Finaliser la réservation'),
+        body: EmptyState(
+          icon: Icons.gpp_bad_outlined,
+          title: 'Réservation bloquée',
+          message: '$licenceProblem\nVotre panier est conservé.',
+          actionLabel: 'Mettre à jour mon permis',
+          onAction: () => context.push(Routes.editProfile),
         ),
       );
     }

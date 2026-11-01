@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -6,11 +8,14 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/validators.dart';
-import '../../data/mock/mock_users.dart';
+import '../../data/repositories/auth_repository.dart';
+import '../../l10n/l10n.dart';
 import '../../state/auction_provider.dart';
 import '../../state/auth_provider.dart';
 import '../../widgets/common.dart';
+import '../../widgets/language_selector.dart';
 import 'auth_scaffold.dart';
+import 'google_sign_in_button.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -26,11 +31,48 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscure = true;
   bool _remember = true;
 
+  /// Rafraîchit le compte à rebours chaque seconde pendant le blocage.
+  Timer? _lockTicker;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      if (auth.isLocked) {
+        _startLockTicker();
+      } else {
+        auth.clearError(); // pas d'ancienne erreur en revenant sur l'écran
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _lockTicker?.cancel();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
+  }
+
+  void _startLockTicker() {
+    _lockTicker?.cancel();
+    _lockTicker = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return timer.cancel();
+      final auth = context.read<AuthProvider>();
+      if (!auth.isLocked) {
+        timer.cancel();
+        auth.clearError();
+      }
+      setState(() {});
+    });
+  }
+
+  /// Efface l'erreur affichée dès que l'utilisateur corrige sa saisie.
+  void _onFieldChanged(String _) {
+    final auth = context.read<AuthProvider>();
+    if (!auth.isLocked) auth.clearError();
   }
 
   Future<void> _submit() async {
@@ -38,7 +80,11 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final auth = context.read<AuthProvider>();
-    final ok = await auth.login(_emailCtrl.text, _passwordCtrl.text);
+    final ok = await auth.login(
+      _emailCtrl.text,
+      _passwordCtrl.text,
+      remember: _remember,
+    );
     if (!mounted) return;
 
     if (ok) {
@@ -46,52 +92,85 @@ class _LoginScreenState extends State<LoginScreen> {
         auth.publicUsername,
         userId: auth.user?.id,
       );
-      AppSnack.success(context, 'Bienvenue ${auth.user!.firstName} !');
+      if (auth.needsEmailVerification) {
+        // Compte jamais vérifié : on envoie un code avant d'ouvrir l'app.
+        AppSnack.info(context, context.l10n.loginVerifyEmailFirst);
+        context.go(Routes.verifyEmail);
+        return;
+      }
+      AppSnack.success(
+        context,
+        context.l10n.loginWelcome(auth.user!.firstName),
+      );
       context.go(Routes.home);
-    } else {
-      AppSnack.error(context, auth.error ?? 'Connexion impossible.');
+    } else if (auth.isLocked) {
+      _passwordCtrl.clear();
+      _startLockTicker();
     }
-  }
-
-  void _fillDemo() {
-    _emailCtrl.text = MockUsers.demoEmail;
-    _passwordCtrl.text = MockUsers.demoPassword;
-    setState(() {});
+    // Les autres erreurs s'affichent dans le formulaire (_LoginAlert).
   }
 
   @override
   Widget build(BuildContext context) {
-    final busy = context.watch<AuthProvider>().busy;
+    final l = context.l10n;
+    final auth = context.watch<AuthProvider>();
+    final busy = auth.busy;
+    final locked = auth.isLocked;
+    final code = auth.errorCode;
+    final secondsLeft = (auth.lockRemaining.inMilliseconds / 1000).ceil();
+
+    // Seules les erreurs de connexion s'affichent ici (pas celles du profil).
+    final loginError = locked
+        ? AuthErrorCode.locked
+        : (code == AuthErrorCode.accountNotFound ||
+              code == AuthErrorCode.wrongPassword)
+        ? code
+        : null;
 
     return AuthScaffold(
-      title: 'Content de vous revoir',
-      subtitle: 'Connectez-vous pour gérer vos locations et vos enchères.',
+      title: l.loginTitle,
+      subtitle: l.loginSubtitle,
       child: Form(
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: LanguageSelector(compact: true),
+            ),
+            const SizedBox(height: 18),
             TextFormField(
               controller: _emailCtrl,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
               autofillHints: const [AutofillHints.email],
-              decoration: const InputDecoration(
-                labelText: 'Adresse e-mail',
-                hintText: 'nom@exemple.tn',
-                prefixIcon: Icon(Icons.mail_outline_rounded),
+              enabled: !locked,
+              decoration: InputDecoration(
+                labelText: l.commonEmail,
+                hintText: l.commonEmailHint,
+                prefixIcon: const Icon(Icons.mail_outline_rounded),
+                errorText: code == AuthErrorCode.accountNotFound
+                    ? l.loginNoAccountWithEmail
+                    : null,
               ),
               validator: Validators.email,
+              onChanged: _onFieldChanged,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _passwordCtrl,
               obscureText: _obscure,
               textInputAction: TextInputAction.done,
-              onFieldSubmitted: (_) => busy ? null : _submit(),
+              enabled: !locked,
+              onChanged: _onFieldChanged,
+              onFieldSubmitted: (_) => busy || locked ? null : _submit(),
               decoration: InputDecoration(
-                labelText: 'Mot de passe',
+                labelText: l.commonPassword,
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
+                errorText: code == AuthErrorCode.wrongPassword
+                    ? l.loginWrongPassword
+                    : null,
                 suffixIcon: IconButton(
                   onPressed: () => setState(() => _obscure = !_obscure),
                   icon: Icon(
@@ -101,9 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              validator: (v) => (v == null || v.isEmpty)
-                  ? 'Le mot de passe est obligatoire'
-                  : null,
+              validator: Validators.passwordRequired,
             ),
             const SizedBox(height: 6),
             Row(
@@ -112,25 +189,35 @@ class _LoginScreenState extends State<LoginScreen> {
                   value: _remember,
                   onChanged: (v) => setState(() => _remember = v ?? false),
                 ),
-                const Text(
-                  'Se souvenir de moi',
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    color: AppColors.textSecondary,
+                Flexible(
+                  child: Text(
+                    l.loginRememberMe,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: context.cs.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 const Spacer(),
                 TextButton(
                   onPressed: () => context.push(Routes.forgotPassword),
-                  child: const Text('Mot de passe oublié ?'),
+                  child: Text(l.loginForgotPassword),
                 ),
               ],
             ),
             const SizedBox(height: 14),
+            if (loginError != null) ...[
+              _LoginAlert(
+                code: loginError,
+                attemptsLeft: auth.attemptsLeft,
+                secondsLeft: secondsLeft,
+              ),
+              const SizedBox(height: 14),
+            ],
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: busy ? null : _submit,
+                onPressed: busy || locked ? null : _submit,
                 child: busy
                     ? const SizedBox(
                         height: 22,
@@ -140,25 +227,29 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text('Se connecter'),
+                    : Text(
+                        locked ? l.loginRetryIn(secondsLeft) : l.commonLogin,
+                      ),
               ),
             ),
             const SizedBox(height: 18),
-            _DemoHint(onFill: _fillDemo),
+            const OrDivider(),
+            const SizedBox(height: 18),
+            const GoogleSignInButton(),
             const SizedBox(height: 22),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
-                  'Pas encore de compte ?',
+                Text(
+                  l.loginNoAccountYet,
                   style: TextStyle(
                     fontSize: 13.5,
-                    color: AppColors.textSecondary,
+                    color: context.cs.onSurfaceVariant,
                   ),
                 ),
                 TextButton(
                   onPressed: () => context.push(Routes.register),
-                  child: const Text('Créer un compte'),
+                  child: Text(l.commonCreateAccount),
                 ),
               ],
             ),
@@ -169,54 +260,44 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-class _DemoHint extends StatelessWidget {
-  const _DemoHint({required this.onFill});
+/// Message d'erreur détaillé sous le formulaire de connexion.
+class _LoginAlert extends StatelessWidget {
+  const _LoginAlert({
+    required this.code,
+    required this.attemptsLeft,
+    required this.secondsLeft,
+  });
 
-  final VoidCallback onFill;
+  final AuthErrorCode code;
+  final int attemptsLeft;
+  final int secondsLeft;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.navy.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        border: Border.all(color: AppColors.border),
+    final l = context.l10n;
+    final tries = l.loginAttemptsLeft(attemptsLeft);
+
+    return switch (code) {
+      AuthErrorCode.accountNotFound => NoticeBox(
+        icon: Icons.person_off_outlined,
+        color: AppColors.danger,
+        title: l.loginAccountNotFoundTitle,
+        message: l.loginAccountNotFoundMessage(tries),
       ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.science_outlined,
-            size: 19,
-            color: AppColors.accent,
-          ),
-          const SizedBox(width: 11),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Compte de démonstration',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  '${MockUsers.demoEmail} · ${MockUsers.demoPassword}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          TextButton(onPressed: onFill, child: const Text('Remplir')),
-        ],
+      AuthErrorCode.wrongPassword => NoticeBox(
+        icon: Icons.lock_outline_rounded,
+        color: AppColors.danger,
+        title: l.loginWrongPassword,
+        message: l.loginWrongPasswordMessage(tries),
       ),
-    );
+      _ => NoticeBox(
+        icon: Icons.timer_outlined,
+        color: AppColors.warning,
+        title: l.loginLockedTitle,
+        message: l.loginLockedMessage(
+          '0:${secondsLeft.toString().padLeft(2, '0')}',
+        ),
+      ),
+    };
   }
 }

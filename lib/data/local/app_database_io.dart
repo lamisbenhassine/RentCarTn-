@@ -153,6 +153,74 @@ class AppDatabase {
 
     await _createRoadSignsTable(db);
     await _createExamsTables(db);
+    await _addUserProfileColumns(db);
+    await _createComplaintsTable(db);
+  }
+
+  /// Version 7 : réclamations. Colonnes indexées pour les listes / filtres,
+  /// et [payload_json] = réclamation complète (historique, photos…), comme
+  /// pour les voitures. Supprimer un compte supprime ses réclamations.
+  Future<void> _createComplaintsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${DatabaseConstants.complaints} (
+        id TEXT PRIMARY KEY NOT NULL,
+        reference TEXT NOT NULL UNIQUE,
+        user_id TEXT NOT NULL,
+        category TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        status TEXT NOT NULL,
+        is_urgent INTEGER NOT NULL DEFAULT 0,
+        reservation_id TEXT,
+        auction_id TEXT,
+        title TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES ${DatabaseConstants.users} (id)
+          ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_complaints_user '
+      'ON ${DatabaseConstants.complaints} (user_id, created_at)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_complaints_status '
+      'ON ${DatabaseConstants.complaints} (status)',
+    );
+  }
+
+  /// Version 5 : colonnes de profil de la table users.
+  /// Utilisé à l'installation neuve et à la migration 4 → 5.
+  static const List<String> _userProfileColumns = [
+    'cin TEXT',
+    'licence_number TEXT',
+    'city TEXT',
+    'address TEXT',
+    'birth_date TEXT',
+    'avatar_url TEXT',
+    'public_username TEXT',
+    'latitude REAL',
+    'longitude REAL',
+    'licence_expiry TEXT',
+    'trust_score INTEGER NOT NULL DEFAULT 50',
+    // Version 6 : 0 = e-mail à vérifier, 1 = vérifié.
+    'email_verified INTEGER NOT NULL DEFAULT 0',
+  ];
+
+  Future<void> _addUserProfileColumns(Database db) async {
+    final info = await db.rawQuery(
+      'PRAGMA table_info(${DatabaseConstants.users})',
+    );
+    final existing = info.map((c) => c['name']! as String).toSet();
+
+    for (final column in _userProfileColumns) {
+      final name = column.split(' ').first;
+      if (existing.contains(name)) continue;
+      await db.execute(
+        'ALTER TABLE ${DatabaseConstants.users} ADD COLUMN $column',
+      );
+    }
   }
 
   Future<void> _createRoadSignsTable(Database db) async {
@@ -214,6 +282,18 @@ class AppDatabase {
       await db.delete(DatabaseConstants.exams);
       await db.delete(DatabaseConstants.roadSigns);
       await db.delete(DatabaseConstants.cars);
+    }
+    if (oldVersion < 5) {
+      await _addUserProfileColumns(db);
+    }
+    if (oldVersion < 6) {
+      await _addUserProfileColumns(db); // ajoute email_verified
+      // Comptes créés avant la vérification : considérés comme vérifiés,
+      // pour ne pas bloquer les utilisateurs existants.
+      await db.update(DatabaseConstants.users, {'email_verified': 1});
+    }
+    if (oldVersion < 7) {
+      await _createComplaintsTable(db);
     }
   }
 
