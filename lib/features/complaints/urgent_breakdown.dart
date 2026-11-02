@@ -11,6 +11,7 @@ import '../../data/models/complaint.dart';
 import '../../data/models/reservation.dart';
 import '../../l10n/l10n.dart';
 import '../../state/auth_provider.dart';
+import '../../state/car_provider.dart';
 import '../../state/complaint_provider.dart';
 import '../../state/reservation_provider.dart';
 import '../../widgets/common.dart';
@@ -117,6 +118,7 @@ class _UrgentSheetState extends State<_UrgentSheet> {
   @override
   void initState() {
     super.initState();
+    context.read<CarProvider>().load(); // nom de la voiture (catalogue)
     // GPS refusé / désactivé : l'alerte part quand même, sans position.
     _location = const LocationService()
         .detect()
@@ -149,14 +151,18 @@ class _UrgentSheetState extends State<_UrgentSheet> {
     if (!mounted) return;
 
     final reservation = _reservation(context.read<ReservationProvider>());
-    final car = reservation?.car.fullName;
+    // Voiture lue dans le catalogue (table cars), pas dans la réservation.
+    final car = reservation == null
+        ? null
+        : context.read<CarProvider>().carById(reservation.car.id);
     final created = await context.read<ComplaintProvider>().create(
       category: ComplaintCategory.panne,
       priority: ComplaintPriority.urgente,
-      title: car == null ? l.urgentTitleNoCar : l.urgentTitle(car),
+      title: car == null ? l.urgentTitleNoCar : l.urgentTitle(car.fullName),
       description: l.urgentDescription,
       reservationId: reservation?.id,
-      carLabel: car,
+      carId: car?.id,
+      carLabel: car?.title,
       agency: reservation?.pickupCity ?? location?.nearestCity,
       latitude: location?.latitude,
       longitude: location?.longitude,
@@ -238,7 +244,11 @@ class _UrgentSheetState extends State<_UrgentSheet> {
                     Icons.directions_car_rounded,
                     AppColors.success,
                     l.urgentWithReservation(
-                      reservation.car.fullName,
+                      context
+                              .watch<CarProvider>()
+                              .carById(reservation.car.id)
+                              ?.fullName ??
+                          '—',
                       reservation.reference,
                     ),
                   ),

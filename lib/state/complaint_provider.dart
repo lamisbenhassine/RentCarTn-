@@ -8,14 +8,19 @@ import '../data/repositories/complaint_repository.dart';
 import '../data/services/complaint_photo_store.dart';
 import 'load_state.dart';
 
-/// Notifications système (création, changement de statut). Branchées dans
-/// main.dart ; absentes dans les tests.
+/// Notifications système (création, changement de statut, réponse de
+/// l'agence). Branchées dans main.dart ; absentes dans les tests.
 abstract class ComplaintAlerts {
   Future<void> created(Complaint complaint);
   Future<void> statusChanged(Complaint complaint);
+
+  /// Réponse de l'admin sans changement de statut.
+  Future<void> responded(Complaint complaint);
 }
 
-/// Réclamations de l'utilisateur connecté (front office).
+/// Réclamations de l'utilisateur connecté (front office). Le traitement
+/// (prise en charge, réponse, résolution, rejet) est fait par l'admin :
+/// voir AdminComplaintProvider.
 ///
 /// Chargé automatiquement à la connexion et vidé à la déconnexion
 /// (voir `_AppViewState` dans main.dart).
@@ -23,7 +28,7 @@ class ComplaintProvider extends ChangeNotifier {
   ComplaintProvider({
     ComplaintRepository? repository,
     ComplaintPhotoStore? photos,
-  }) : _repository = repository ?? ComplaintRepositoryFactory.create(),
+  }) : _repository = repository ?? ComplaintRepositoryFactory.shared,
        _photos = photos ?? const ComplaintPhotoStore();
 
   final ComplaintRepository _repository;
@@ -74,9 +79,10 @@ class ComplaintProvider extends ChangeNotifier {
     return null;
   }
 
-  /// Charge les réclamations de [userId]. `null` → liste vidée
-  /// (déconnexion, compte supprimé).
-  Future<void> loadFor(String? userId, {bool force = false}) async {
+  /// Front office : réclamations de [userId] SEULEMENT (getByUser).
+  /// `null` → liste vidée (déconnexion, compte supprimé). Le back office
+  /// (toutes les réclamations, getAll) est AdminComplaintProvider.loadAll.
+  Future<void> loadForUser(String? userId, {bool force = false}) async {
     if (userId == null) {
       _userId = null;
       _complaints = [];
@@ -93,6 +99,10 @@ class ComplaintProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _complaints = await _repository.getByUser(userId);
+      debugPrint(
+        '[Complaint] getByUser(userId=$userId) → ${_complaints.length} '
+        'ligne(s)',
+      );
       _unread = await _loadUnread(userId);
       _state = LoadState.success;
       _errorMessage = null;
@@ -113,6 +123,7 @@ class ComplaintProvider extends ChangeNotifier {
     ComplaintPriority priority = ComplaintPriority.moyenne,
     String? reservationId,
     String? auctionId,
+    String? carId,
     String? carLabel,
     String? agency,
     List<String> photoPaths = const [],
@@ -138,6 +149,7 @@ class ComplaintProvider extends ChangeNotifier {
         status: ComplaintStatus.enAttente,
         reservationId: reservationId,
         auctionId: auctionId,
+        carId: carId,
         carLabel: carLabel,
         agency: agency,
         photoPaths: photoPaths,
@@ -158,6 +170,10 @@ class ComplaintProvider extends ChangeNotifier {
         updatedAt: now,
       );
       await _repository.create(complaint);
+      debugPrint(
+        '[Complaint] Créée ${complaint.reference} (id=${complaint.id}, '
+        'userId=$userId)',
+      );
       _complaints = [complaint, ..._complaints];
       _errorMessage = null;
       notifyListeners();
@@ -197,79 +213,6 @@ class ComplaintProvider extends ChangeNotifier {
     }
   }
 
-  /// **Mode démo** (pas de back office) : fait avancer la réclamation comme
-  /// le ferait l'agence, en ajoutant les étapes à l'historique.
-  /// - En attente → En cours (« Prise en charge ») ;
-  /// - En cours → Résolue, ou Rejetée si [reject], avec une réponse.
-  /// Retourne le nouveau statut, ou `null` si rien n'a changé.
-  /// [abusive] (avec [reject]) : rejet pour réclamation abusive → -10 sur le
-  /// score de confiance du client.
-  Future<ComplaintStatus?> simulateAgencyStep(
-    String id, {
-    bool reject = false,
-    bool abusive = false,
-  }) async {
-    final c = byId(id);
-    if (c == null || c.status.isClosed) return null;
-
-    final Complaint next;
-    if (c.status == ComplaintStatus.enAttente) {
-      next = c.withEvent(
-        ComplaintStatus.enCours,
-        'Prise en charge par l\'agence${c.agency != null ? ' ${c.agency}' : ''}',
-      );
-    } else if (reject) {
-      next = c
-          .withEvent(
-            ComplaintStatus.rejetee,
-            abusive
-                ? 'Réclamation rejetée comme abusive'
-                : 'Réclamation rejetée',
-          )
-          .copyWith(
-            agencyResponse: abusive ? _demoAbusive(c) : _demoRejection(c),
-            abusive: abusive,
-          );
-    } else {
-      next = c
-          .withEvent(ComplaintStatus.resolue, 'Réclamation résolue')
-          .copyWith(agencyResponse: _demoResolution(c));
-    }
-    final ok = await update(next);
-    return ok ? next.status : null;
-  }
-
-  /// Réponses d'agence fictives, selon la catégorie (démo uniquement).
-  static String _demoResolution(Complaint c) => switch (c.category) {
-    ComplaintCategory.panne =>
-      'Un véhicule de remplacement a été mis à votre disposition et la '
-          'journée concernée vous sera remboursée.',
-    ComplaintCategory.proprete =>
-      'Toutes nos excuses : un nettoyage complet a été effectué et un bon '
-          'de réduction de 10 % vous est offert pour votre prochaine location.',
-    ComplaintCategory.retardAgence =>
-      'Nous avons rappelé les horaires à notre équipe. Un geste commercial '
-          'a été appliqué sur votre réservation.',
-    ComplaintCategory.facturation =>
-      'Après vérification, la différence vous sera remboursée sous 5 jours '
-          'ouvrés sur votre moyen de paiement.',
-    ComplaintCategory.enchere =>
-      'Nous avons vérifié l\'historique des offres : la situation a été '
-          'corrigée et votre compte mis à jour.',
-    ComplaintCategory.autre =>
-      'Merci pour votre retour : le problème a été traité par notre équipe.',
-  };
-
-  static String _demoAbusive(Complaint c) =>
-      'Après vérification, le dossier ${c.reference} ne correspond à aucun '
-      'incident constaté et a été classé comme abusif. Votre score de '
-      'confiance en tient compte.';
-
-  static String _demoRejection(Complaint c) =>
-      'Après examen du dossier ${c.reference}, nous ne pouvons pas donner '
-      'suite à votre demande. Notre service client reste disponible pour '
-      'en discuter.';
-
   // ---------------------------------------------------------------------------
   // Satisfaction
   // ---------------------------------------------------------------------------
@@ -298,7 +241,7 @@ class ComplaintProvider extends ChangeNotifier {
             ComplaintStatus.enAttente,
             'Réclamation rouverte par le client (note $note/5)',
           )
-          .copyWith(clearRating: true),
+          .copyWith(clearRating: true, clearClosedAt: true),
       notify: false,
     );
   }
@@ -339,6 +282,21 @@ class ComplaintProvider extends ChangeNotifier {
   // --- Non lus (SharedPreferences, clé par utilisateur) ---
 
   static String _unreadKey(String userId) => 'complaint_unread_$userId';
+
+  /// Action de l'admin sur la réclamation d'un AUTRE compte : badge « non
+  /// lu » enregistré pour ce client (affiché à sa prochaine connexion).
+  static Future<void> markUnreadFor(String userId, String complaintId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _unreadKey(userId);
+      await prefs.setStringList(
+        key,
+        {...?prefs.getStringList(key), complaintId}.toList(),
+      );
+    } catch (e) {
+      debugPrint('[Complaints] Non lu non enregistré pour $userId : $e');
+    }
+  }
 
   Future<Set<String>> _loadUnread(String userId) async {
     try {

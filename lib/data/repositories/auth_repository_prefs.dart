@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/ban_record.dart';
 import '../models/user_profile.dart';
 import '../models/user_role.dart';
 import '../services/google_auth_service.dart';
@@ -15,6 +16,15 @@ class PrefsAuthRepository implements AuthRepository {
 
   static const _usersKey = 'auth_users_v1';
   static const _sessionKey = 'auth_session_user_id';
+  static const _banHistoryKey = 'auth_ban_history_v1';
+
+  /// Champs du bannissement : jamais écrasés par updateProfile.
+  static const _banKeys = [
+    'bannedUntil',
+    'banPermanent',
+    'banReason',
+    'bannedBy',
+  ];
   static const defaultAdminEmail = 'admin@rentcar.tn';
   static const defaultAdminPassword = 'admin123';
 
@@ -60,6 +70,10 @@ class PrefsAuthRepository implements AuthRepository {
       licenceExpiry: date(map['licenceExpiry']),
       trustScore: (map['trustScore'] as num?)?.toInt() ?? 50,
       emailVerified: map['emailVerified'] == true,
+      bannedUntil: date(map['bannedUntil']),
+      banPermanent: map['banPermanent'] == true,
+      banReason: map['banReason'] as String?,
+      bannedBy: map['bannedBy'] as String?,
     );
   }
 
@@ -319,10 +333,14 @@ class PrefsAuthRepository implements AuthRepository {
     }
     // L'e-mail peut changer : la clé suit.
     users.removeWhere((_, r) => r['id'] == user.id);
-    users[email] = _toMap(
-      user,
-      passwordHash: (current?['passwordHash'] as String?) ?? '',
-    );
+    users[email] = {
+      ..._toMap(
+        user,
+        passwordHash: (current?['passwordHash'] as String?) ?? '',
+      ),
+      for (final k in _banKeys)
+        if (current?[k] != null) k: current![k],
+    };
     await _saveUsers(users);
     return user;
   }
@@ -348,7 +366,10 @@ class PrefsAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<UserProfile> findAccountForReset({String? email, String? phone}) async {
+  Future<UserProfile> findAccountForReset({
+    String? email,
+    String? phone,
+  }) async {
     await ensureDefaultAdmin();
     final users = await _loadUsers();
     final row = email != null
@@ -365,5 +386,91 @@ class PrefsAuthRepository implements AuthRepository {
     if (row == null) throw AuthException.accountNotFound;
     row['passwordHash'] = hashPassword(newPassword);
     await _saveUsers(users);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bannissement
+  // ---------------------------------------------------------------------------
+
+  Future<List<BanRecord>> _loadBans() async {
+    final raw = (await _prefs).getString(_banHistoryKey);
+    if (raw == null || raw.isEmpty) return [];
+    return [
+      for (final e in jsonDecode(raw) as List)
+        BanRecord.fromJson(Map<String, Object?>.from(e as Map)),
+    ];
+  }
+
+  Future<void> _saveBans(List<BanRecord> bans) async {
+    await (await _prefs).setString(
+      _banHistoryKey,
+      jsonEncode([for (final b in bans) b.toJson()]),
+    );
+  }
+
+  /// Clôt le bannissement ouvert du compte (remplacé ou levé).
+  List<BanRecord> _closeOpen(
+    List<BanRecord> bans,
+    String userId,
+    DateTime at,
+    String by,
+  ) => [
+    for (final b in bans)
+      b.userId == userId && b.liftedAt == null
+          ? b.copyWith(liftedAt: at, liftedBy: by)
+          : b,
+  ];
+
+  @override
+  Future<List<UserProfile>> getAllUsers() async {
+    final list = (await _loadUsers()).values.map(_fromMap).toList()
+      ..sort(
+        (a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
+      );
+    return list;
+  }
+
+  @override
+  Future<UserProfile> banUser(BanRecord record) async {
+    final users = await _loadUsers();
+    final row = _byId(users, record.userId);
+    if (row == null) throw AuthException.accountNotFound;
+    row
+      ..['bannedUntil'] = record.end?.toIso8601String()
+      ..['banPermanent'] = record.permanent
+      ..['banReason'] = record.reason
+      ..['bannedBy'] = record.adminName ?? record.adminId;
+    final by = record.adminName ?? record.adminId;
+    final bans = _closeOpen(await _loadBans(), record.userId, record.start, by)
+      ..add(record);
+    await _saveUsers(users);
+    await _saveBans(bans);
+    return _fromMap(row);
+  }
+
+  @override
+  Future<UserProfile> unbanUser(
+    String userId, {
+    required String liftedBy,
+    DateTime? at,
+  }) async {
+    final users = await _loadUsers();
+    final row = _byId(users, userId);
+    if (row == null) throw AuthException.accountNotFound;
+    for (final k in _banKeys) {
+      row.remove(k);
+    }
+    await _saveUsers(users);
+    await _saveBans(
+      _closeOpen(await _loadBans(), userId, at ?? DateTime.now(), liftedBy),
+    );
+    return _fromMap(row);
+  }
+
+  @override
+  Future<List<BanRecord>> getBanHistory(String userId) async {
+    final list = (await _loadBans()).where((b) => b.userId == userId).toList()
+      ..sort((a, b) => b.start.compareTo(a.start));
+    return list;
   }
 }

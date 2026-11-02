@@ -8,6 +8,9 @@ abstract class ComplaintRepository {
   /// Réclamations d'un utilisateur, les plus récentes d'abord.
   Future<List<Complaint>> getByUser(String userId);
 
+  /// Toutes les réclamations (back office admin), les plus récentes d'abord.
+  Future<List<Complaint>> getAll();
+
   Future<Complaint?> byId(String id);
 
   Future<Complaint> create(Complaint complaint);
@@ -23,6 +26,10 @@ abstract class ComplaintRepository {
 /// - Mobile / APK → **sqflite**
 /// - Web (Chrome) → **shared_preferences**
 class ComplaintRepositoryFactory {
+  /// Instance unique de l'app : « Mes réclamations » (getByUser) et le back
+  /// office admin (getAll) lisent exactement les mêmes données.
+  static final ComplaintRepository shared = create();
+
   static ComplaintRepository create() {
     if (AppDatabase.instance.isSupported) {
       return SqfliteComplaintRepository();

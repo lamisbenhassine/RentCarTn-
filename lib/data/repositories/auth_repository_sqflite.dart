@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../local/app_database.dart';
 import '../local/database_constants.dart';
+import '../models/ban_record.dart';
 import '../models/user_profile.dart';
 import '../models/user_role.dart';
 import '../services/google_auth_service.dart';
@@ -58,10 +59,16 @@ class SqfliteAuthRepository implements AuthRepository {
       licenceExpiry: _date(row['licence_expiry']),
       trustScore: (row['trust_score'] as num?)?.toInt() ?? 50,
       emailVerified: (row['email_verified'] as num?) == 1,
+      bannedUntil: _date(row['banned_until']),
+      banPermanent: (row['ban_permanent'] as num?) == 1,
+      banReason: row['ban_reason'] as String?,
+      bannedBy: row['banned_by'] as String?,
     );
   }
 
-  /// Colonnes du profil (sans mot de passe ni dates techniques).
+  /// Colonnes du profil (sans mot de passe ni dates techniques). Les
+  /// colonnes banned_* n'y sont pas : seul banUser / unbanUser les écrit
+  /// (un profil enregistré par le client ne peut pas lever son bannissement).
   Map<String, Object?> _toRow(UserProfile u) => {
     'id': u.id,
     'first_name': u.firstName,
@@ -454,4 +461,121 @@ class SqfliteAuthRepository implements AuthRepository {
   @override
   Future<void> resetPassword(UserProfile user, String newPassword) =>
       _updatePassword(user.id, hashPassword(newPassword));
+
+  // ---------------------------------------------------------------------------
+  // Bannissement
+  // ---------------------------------------------------------------------------
+
+  static Map<String, Object?> _banToRow(BanRecord b) => {
+    'id': b.id,
+    'user_id': b.userId,
+    'admin_id': b.adminId,
+    'admin_name': b.adminName,
+    'reason': b.reason,
+    'start_at': b.start.toIso8601String(),
+    'end_at': b.end?.toIso8601String(),
+    'permanent': b.permanent ? 1 : 0,
+    'complaint_id': b.complaintId,
+    'lifted_at': b.liftedAt?.toIso8601String(),
+    'lifted_by': b.liftedBy,
+  };
+
+  static BanRecord _banFromRow(Map<String, Object?> r) => BanRecord(
+    id: '${r['id']}',
+    userId: '${r['user_id']}',
+    adminId: '${r['admin_id'] ?? ''}',
+    adminName: r['admin_name'] as String?,
+    reason: (r['reason'] as String?) ?? '',
+    start: _date(r['start_at']) ?? DateTime.now(),
+    end: _date(r['end_at']),
+    permanent: (r['permanent'] as num?) == 1,
+    complaintId: r['complaint_id'] as String?,
+    liftedAt: _date(r['lifted_at']),
+    liftedBy: r['lifted_by'] as String?,
+  );
+
+  @override
+  Future<List<UserProfile>> getAllUsers() async {
+    final rows = await (await _db).query(
+      DatabaseConstants.users,
+      orderBy: 'first_name COLLATE NOCASE, last_name COLLATE NOCASE',
+    );
+    return rows.map(_fromRow).toList(growable: false);
+  }
+
+  @override
+  Future<UserProfile> banUser(BanRecord record) async {
+    final db = await _db;
+    await db.transaction((txn) async {
+      // Un seul bannissement ouvert : l'ancien est clos (remplacé).
+      await txn.update(
+        DatabaseConstants.banHistory,
+        {
+          'lifted_at': record.start.toIso8601String(),
+          'lifted_by': record.adminName ?? record.adminId,
+        },
+        where: 'user_id = ? AND lifted_at IS NULL',
+        whereArgs: [record.userId],
+      );
+      await txn.insert(DatabaseConstants.banHistory, _banToRow(record));
+      final count = await txn.update(
+        DatabaseConstants.users,
+        {
+          'banned_until': record.end?.toIso8601String(),
+          'ban_permanent': record.permanent ? 1 : 0,
+          'ban_reason': record.reason,
+          'banned_by': record.adminName ?? record.adminId,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [record.userId],
+      );
+      if (count == 0) throw AuthException.accountNotFound;
+    });
+    return (await byId(record.userId))!;
+  }
+
+  @override
+  Future<UserProfile> unbanUser(
+    String userId, {
+    required String liftedBy,
+    DateTime? at,
+  }) async {
+    final when = (at ?? DateTime.now()).toIso8601String();
+    final db = await _db;
+    await db.transaction((txn) async {
+      await txn.update(
+        DatabaseConstants.banHistory,
+        {'lifted_at': when, 'lifted_by': liftedBy},
+        where: 'user_id = ? AND lifted_at IS NULL',
+        whereArgs: [userId],
+      );
+      await txn.update(
+        DatabaseConstants.users,
+        {
+          'banned_until': null,
+          'ban_permanent': 0,
+          'ban_reason': null,
+          'banned_by': null,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [userId],
+      );
+    });
+    final user = await byId(userId);
+    if (user == null) throw AuthException.accountNotFound;
+    return user;
+  }
+
+  @override
+  Future<List<BanRecord>> getBanHistory(String userId) async {
+    final rows = await (await _db).query(
+      DatabaseConstants.banHistory,
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'start_at DESC',
+    );
+    return rows.map(_banFromRow).toList(growable: false);
+  }
 }

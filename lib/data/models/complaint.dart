@@ -42,6 +42,10 @@ extension ComplaintCategoryX on ComplaintCategory {
     ComplaintCategory.enchere => AppColors.gold,
     ComplaintCategory.autre => AppColors.textSecondary,
   };
+
+  /// Panne et propreté : le véhicule concerné est obligatoire.
+  bool get requiresCar =>
+      this == ComplaintCategory.panne || this == ComplaintCategory.proprete;
 }
 
 enum ComplaintPriority { basse, moyenne, urgente }
@@ -130,16 +134,21 @@ class ComplaintEvent {
     required this.status,
     required this.date,
     required this.message,
+    this.by,
   });
 
   final ComplaintStatus status;
   final DateTime date;
   final String message;
 
+  /// Auteur de l'étape côté agence (nom de l'admin), `null` pour le client.
+  final String? by;
+
   Map<String, Object?> toJson() => {
     'status': status.name,
     'date': date.toIso8601String(),
     'message': message,
+    'by': by,
   };
 
   factory ComplaintEvent.fromJson(Map<String, Object?> json) => ComplaintEvent(
@@ -150,6 +159,7 @@ class ComplaintEvent {
     ),
     date: DateTime.tryParse('${json['date']}') ?? DateTime.now(),
     message: (json['message'] as String?) ?? '',
+    by: json['by'] as String?,
   );
 }
 
@@ -171,6 +181,7 @@ class Complaint {
     required this.updatedAt,
     this.reservationId,
     this.auctionId,
+    this.carId,
     this.carLabel,
     this.agency,
     this.photoPaths = const [],
@@ -185,6 +196,8 @@ class Complaint {
     this.abusive = false,
     this.aiSummary,
     this.aiTone,
+    this.handledBy,
+    this.closedAt,
   });
 
   final String id;
@@ -202,7 +215,11 @@ class Complaint {
   final String? reservationId;
   final String? auctionId;
 
-  /// « Peugeot 208 », copié à la création (la réservation peut disparaître).
+  /// Véhicule du catalogue (table cars) concerné par la réclamation.
+  final String? carId;
+
+  /// « Marque Modèle Année », copié à la création : reste affiché si la
+  /// voiture est retirée du catalogue.
   final String? carLabel;
   final String? agency;
 
@@ -230,6 +247,13 @@ class Complaint {
   /// Analyse IA (Gemini) au moment de l'envoi : résumé en une phrase et ton.
   final String? aiSummary;
   final ComplaintTone? aiTone;
+
+  /// Admin qui a pris en charge le dossier (nom affiché).
+  final String? handledBy;
+
+  /// Résolution ou rejet par l'admin (temps de traitement). Effacée si le
+  /// client rouvre la réclamation.
+  final DateTime? closedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -251,6 +275,7 @@ class Complaint {
     ComplaintStatus? status,
     String? reservationId,
     String? auctionId,
+    String? carId,
     String? carLabel,
     String? agency,
     List<String>? photoPaths,
@@ -265,11 +290,16 @@ class Complaint {
     bool? abusive,
     String? aiSummary,
     ComplaintTone? aiTone,
+    String? handledBy,
+    DateTime? closedAt,
     DateTime? updatedAt,
 
     /// Efface la note (réclamation rouverte : nouvelle note après la
     /// prochaine résolution).
     bool clearRating = false,
+
+    /// Efface la date de clôture (réclamation rouverte).
+    bool clearClosedAt = false,
   }) {
     return Complaint(
       id: id,
@@ -282,6 +312,7 @@ class Complaint {
       status: status ?? this.status,
       reservationId: reservationId ?? this.reservationId,
       auctionId: auctionId ?? this.auctionId,
+      carId: carId ?? this.carId,
       carLabel: carLabel ?? this.carLabel,
       agency: agency ?? this.agency,
       photoPaths: photoPaths ?? this.photoPaths,
@@ -296,22 +327,36 @@ class Complaint {
       abusive: abusive ?? this.abusive,
       aiSummary: aiSummary ?? this.aiSummary,
       aiTone: aiTone ?? this.aiTone,
+      handledBy: handledBy ?? this.handledBy,
+      closedAt: clearClosedAt ? null : (closedAt ?? this.closedAt),
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
-  /// Ajoute une étape au suivi et passe au [status] donné.
-  Complaint withEvent(ComplaintStatus status, String message, {DateTime? at}) {
+  /// Ajoute une étape au suivi et passe au [status] donné. [by] : nom de
+  /// l'admin pour les étapes de l'agence.
+  Complaint withEvent(
+    ComplaintStatus status,
+    String message, {
+    DateTime? at,
+    String? by,
+  }) {
     final when = at ?? DateTime.now();
     return copyWith(
       status: status,
       history: [
         ...history,
-        ComplaintEvent(status: status, date: when, message: message),
+        ComplaintEvent(status: status, date: when, message: message, by: by),
       ],
       updatedAt: when,
     );
+  }
+
+  /// Durée de traitement (création → résolution / rejet), `null` si ouverte.
+  Duration? get processingTime {
+    final end = closedAt;
+    return status.isClosed && end != null ? end.difference(createdAt) : null;
   }
 
   Map<String, Object?> toJson() => {
@@ -325,6 +370,7 @@ class Complaint {
     'status': status.name,
     'reservationId': reservationId,
     'auctionId': auctionId,
+    'carId': carId,
     'carLabel': carLabel,
     'agency': agency,
     'photoPaths': photoPaths,
@@ -339,6 +385,8 @@ class Complaint {
     'abusive': abusive,
     'aiSummary': aiSummary,
     'aiTone': aiTone?.name,
+    'handledBy': handledBy,
+    'closedAt': closedAt?.toIso8601String(),
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
   };
@@ -368,6 +416,7 @@ class Complaint {
       ),
       reservationId: json['reservationId'] as String?,
       auctionId: json['auctionId'] as String?,
+      carId: json['carId'] as String?,
       carLabel: json['carLabel'] as String?,
       agency: json['agency'] as String?,
       photoPaths: [
@@ -393,6 +442,10 @@ class Complaint {
               json['aiTone'],
               ComplaintTone.calme,
             ),
+      handledBy: json['handledBy'] as String?,
+      closedAt: json['closedAt'] == null
+          ? null
+          : DateTime.tryParse('${json['closedAt']}'),
       createdAt: created,
       updatedAt: DateTime.tryParse('${json['updatedAt']}') ?? created,
     );

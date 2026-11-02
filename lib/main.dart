@@ -15,6 +15,8 @@ import 'l10n/app_localizations.dart';
 import 'data/services/local_notification_service.dart';
 import 'state/auction_provider.dart';
 import 'state/auth_provider.dart';
+import 'state/admin_complaint_provider.dart';
+import 'state/admin_user_provider.dart';
 import 'state/complaint_provider.dart';
 import 'state/car_provider.dart';
 import 'state/cart_provider.dart';
@@ -101,6 +103,8 @@ class RentCarApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LearningProvider()),
         ChangeNotifierProvider(create: (_) => ExamProvider()),
         ChangeNotifierProvider(create: (_) => ComplaintProvider()),
+        ChangeNotifierProvider(create: (_) => AdminComplaintProvider()),
+        ChangeNotifierProvider(create: (_) => AdminUserProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
         ChangeNotifierProvider(
           create: (_) => NotificationProvider()..load(),
@@ -164,8 +168,12 @@ class _AppViewState extends State<_AppView> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
     // L'utilisateur a pu autoriser / bloquer les notifications dans Android.
-    if (state == AppLifecycleState.resumed) _reminders.refreshPermission();
+    _reminders.refreshPermission();
+    // Compte banni pendant l'absence → déconnexion + « Compte suspendu »
+    // (ou bannissement échu → réactivé).
+    _auth.recheckBan();
   }
 
   @override
@@ -182,12 +190,35 @@ class _AppViewState extends State<_AppView> with WidgetsBindingObserver {
   // --- Réclamations : chargées pour l'utilisateur connecté, vidées à la
   // déconnexion (ou à la suppression du compte). ---
   late final ComplaintProvider _complaints;
+  late final AdminComplaintProvider _adminComplaints;
   late final ChatProvider _chat;
 
-  /// Réclamations + historique de l'assistant suivent le compte connecté.
+  /// Compte pour lequel le back office a été chargé (changement détecté).
+  String? _syncedUserId;
+
+  /// Réclamations + historique de l'assistant suivent le compte connecté :
+  /// vidés à la déconnexion, rechargés à la connexion / au changement de
+  /// compte (AuthProvider notifie aussi pendant « busy » : on ne recharge
+  /// le back office que si le compte a vraiment changé).
   void _syncComplaints() {
-    _complaints.loadFor(_auth.user?.id);
-    _chat.loadFor(_auth.user?.id);
+    final user = _auth.user;
+    _complaints.loadForUser(user?.id);
+    _chat.loadFor(user?.id);
+    if (user?.id == _syncedUserId) return;
+    _syncedUserId = user?.id;
+    debugPrint(
+      '[Complaint] Compte connecté : userId=${user?.id}, '
+      'isAdmin=${user?.isAdmin ?? false}',
+    );
+    if (user?.isAdmin ?? false) {
+      // Back office : toutes les réclamations, à jour (créées par les
+      // clients pendant que l'admin était déconnecté).
+      _adminComplaints.loadAll(force: true);
+      context.read<AdminUserProvider>().load(force: true);
+    } else {
+      _adminComplaints.clear();
+      context.read<AdminUserProvider>().clear();
+    }
   }
 
   // Construits une seule fois (pas à chaque rebuild).
@@ -205,6 +236,9 @@ class _AppViewState extends State<_AppView> with WidgetsBindingObserver {
     Routes.profile, // + /profil/modifier
     Routes.complaints, // + /reclamations/nouvelle, /reclamations/:id/…
     Routes.assistant,
+    Routes.adminComplaints, // + /admin/reclamations/:id
+    Routes.adminUsers, // + /admin/utilisateurs/:id
+    Routes.accountSuspended,
   ];
 
   bool _isDarkReady(String path) =>
@@ -231,10 +265,15 @@ class _AppViewState extends State<_AppView> with WidgetsBindingObserver {
     _complaints = context.read<ComplaintProvider>();
     _chat = context.read<ChatProvider>();
     // Notifications : statut changé, alerte urgente créée (langue courante).
-    _complaints.alerts = ComplaintNotifications(
+    final complaintAlerts = ComplaintNotifications(
       l10n: () => lookupAppLocalizations(_locale.locale),
       onPermissionChanged: _reminders.refreshPermission,
     );
+    _complaints.alerts = complaintAlerts;
+    // Actions de l'admin → notification « au client » (même appareil en
+    // démo ; un serveur de push prendra le relais plus tard).
+    _adminComplaints = context.read<AdminComplaintProvider>()
+      ..alerts = complaintAlerts;
     _auth.addListener(_syncComplaints);
     // Après la première image : pas de notifyListeners pendant le build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -265,6 +304,13 @@ class _AppViewState extends State<_AppView> with WidgetsBindingObserver {
   /// Clic sur une notification. Payload = route go_router (module User /
   /// Réclamations, ex. `/reclamations/ID`) ou id d'enchère (équipe).
   void _openNotification(String payload) {
+    // Admin connecté : la réclamation s'ouvre dans le back office.
+    const prefix = '${Routes.complaints}/';
+    if (_auth.isAdmin && payload.startsWith(prefix)) {
+      final id = payload.substring(prefix.length).split('/').first;
+      _router.go(Routes.adminComplaint(id));
+      return;
+    }
     _router.go(payload.startsWith('/') ? payload : Routes.auction(payload));
   }
 

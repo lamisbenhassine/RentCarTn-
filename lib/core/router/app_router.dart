@@ -8,6 +8,11 @@ import '../../features/auctions/auction_result_screen.dart';
 import '../../features/auctions/auctions_screen.dart';
 import '../../features/auctions/fleet_management_screen.dart';
 import '../../features/auctions/my_auctions_screen.dart';
+import '../../features/admin/admin_complaint_details_screen.dart';
+import '../../features/admin/admin_complaints_screen.dart';
+import '../../features/admin/admin_user_details_screen.dart';
+import '../../features/admin/admin_users_screen.dart';
+import '../../features/auth/account_suspended_screen.dart';
 import '../../features/assistant/assistant_screen.dart';
 import '../../features/auth/forgot_password_screen.dart';
 import '../../features/auth/login_screen.dart';
@@ -54,11 +59,15 @@ class Routes {
   static const login = '/connexion';
   static const register = '/inscription';
   static const forgotPassword = '/mot-de-passe-oublie';
+
+  /// Compte banni (connexion refusée ou session coupée).
+  static const accountSuspended = '/compte-suspendu';
   static const verifyEmail = '/verifier-email';
 
   static const home = '/accueil';
   static const catalog = '/catalogue';
   static const manageCars = '/catalogue/gerer';
+
   /// Hors shell `/catalogue` (évite le 404 go_router sur les sous-chemins).
   static const recommendQuiz = '/recommandation';
   static const auctions = '/encheres';
@@ -71,6 +80,14 @@ class Routes {
   static const complaints = '/reclamations';
   static const complaintNew = '/reclamations/nouvelle';
   static const assistant = '/assistant';
+
+  /// Back office des réclamations (admin uniquement, voir needsAdmin).
+  static const adminComplaints = '/admin/reclamations';
+  static String adminComplaint(String id) => '/admin/reclamations/$id';
+
+  /// Back office des comptes (bannissement).
+  static const adminUsers = '/admin/utilisateurs';
+  static String adminUser(String id) => '/admin/utilisateurs/$id';
   static const cart = '/panier';
   static const checkout = '/paiement';
   static const confirmation = '/confirmation';
@@ -136,6 +153,25 @@ GoRouter buildRouter(AuthProvider auth) {
 
       final loggedIn = auth.isLoggedIn;
       final path = state.matchedLocation;
+
+      // Compte suspendu : seul l'écran « Compte suspendu » est accessible.
+      if (auth.suspended != null) {
+        return path == Routes.accountSuspended ? null : Routes.accountSuspended;
+      }
+      if (path == Routes.accountSuspended) {
+        return loggedIn ? Routes.home : Routes.login;
+      }
+
+      // Admin : « Réclamations » = back office (toutes les réclamations),
+      // jamais « Mes réclamations » (liste personnelle, vide pour l'admin).
+      if (auth.isAdmin && path.startsWith(Routes.complaints)) {
+        final rest = path.substring(Routes.complaints.length);
+        if (rest.isEmpty || rest == '/') return Routes.adminComplaints;
+        final parts = rest.split('/')..removeWhere((p) => p.isEmpty);
+        if (parts.length == 1 && parts.first != 'nouvelle') {
+          return Routes.adminComplaint(parts.first);
+        }
+      }
       const publicPaths = {
         Routes.onboarding,
         Routes.login,
@@ -164,7 +200,8 @@ GoRouter buildRouter(AuthProvider auth) {
           path.startsWith('/code-de-la-route/panneaux/nouveau') ||
           path.contains('/panneaux/') && path.endsWith('/modifier') ||
           path.startsWith('/code-de-la-route/examens/nouveau') ||
-          path.contains('/examens/') && path.endsWith('/modifier');
+          path.contains('/examens/') && path.endsWith('/modifier') ||
+          path.startsWith('/admin/');
       if (needsAdmin && !auth.isAdmin) return Routes.home;
 
       return null;
@@ -298,6 +335,37 @@ GoRouter buildRouter(AuthProvider auth) {
         path: Routes.assistant,
         parentNavigatorKey: _rootKey,
         builder: (_, _) => const AssistantScreen(),
+      ),
+      GoRoute(
+        path: Routes.accountSuspended,
+        builder: (_, _) => const AccountSuspendedScreen(),
+      ),
+      GoRoute(
+        path: Routes.adminUsers,
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const AdminUsersScreen(),
+        routes: [
+          GoRoute(
+            path: ':id',
+            parentNavigatorKey: _rootKey,
+            builder: (_, state) =>
+                AdminUserDetailsScreen(userId: state.pathParameters['id']!),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: Routes.adminComplaints,
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const AdminComplaintsScreen(),
+        routes: [
+          GoRoute(
+            path: ':id',
+            parentNavigatorKey: _rootKey,
+            builder: (_, state) => AdminComplaintDetailsScreen(
+              complaintId: state.pathParameters['id']!,
+            ),
+          ),
+        ],
       ),
       GoRoute(
         path: Routes.complaints,

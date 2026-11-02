@@ -23,11 +23,14 @@ import '../../data/services/gemini_service.dart';
 import '../../l10n/l10n.dart';
 import '../../state/auction_provider.dart';
 import '../../state/auth_provider.dart';
+import '../../state/car_provider.dart';
 import '../../state/complaint_provider.dart';
+import '../../state/load_state.dart';
 import '../../state/reservation_provider.dart';
 import '../../widgets/common.dart';
 import 'complaint_l10n.dart';
 import 'complaint_mail.dart';
+import 'widgets/complaint_car.dart';
 import 'widgets/complaint_photo.dart';
 
 /// Création d'une réclamation, ou modification si [complaintId] est donné.
@@ -73,9 +76,18 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
   String? _reservationId;
   String? _auctionId;
 
+  // --- Véhicule concerné (catalogue, table cars) ---
+  /// Choix du client dans la liste des voitures.
+  String? _carId;
+
+  /// Le client a choisi (ou retiré) le véhicule lui-même : la voiture de la
+  /// réservation liée n'est plus reprise automatiquement.
+  bool _carTouched = false;
+
   /// Erreurs hors champs texte (affichées après « Envoyer »).
   bool _showCategoryError = false;
   bool _showLinkError = false;
+  bool _showCarError = false;
 
   bool _saving = false;
   bool _saveFailed = false;
@@ -317,6 +329,7 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
     setState(() {
       _category = c;
       _showCategoryError = false;
+      if (!c.requiresCar) _showCarError = false;
       // Enchère : on propose directement de lier une enchère.
       if (c == ComplaintCategory.enchere && _link == _LinkType.none) {
         _link = _LinkType.auction;
@@ -392,6 +405,11 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
         _priority = c.priority;
         _title.text = c.title;
         _description.text = c.description;
+        // Anciennes réclamations (sans carId) : voiture de la réservation.
+        if (c.carId != null) {
+          _carId = c.carId;
+          _carTouched = true;
+        }
         if (c.reservationId != null) {
           _link = _LinkType.reservation;
           _reservationId = c.reservationId;
@@ -415,6 +433,10 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
         _link = _LinkType.reservation;
         _reservationId = draft.reservationId;
       }
+      if (draft.carId != null) {
+        _carId = draft.carId;
+        _carTouched = true;
+      }
       // Panne : position jointe comme avec la grille de catégories.
       if (draft.category == ComplaintCategory.panne) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -432,6 +454,7 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
       if (!mounted) return;
       context.read<ReservationProvider>().load();
       context.read<AuctionProvider>().load();
+      context.read<CarProvider>().load(); // véhicules du catalogue
     });
   }
 
@@ -546,24 +569,65 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
     return null;
   }
 
+  /// Voiture de la réservation liée, si elle existe dans le catalogue.
+  String? _reservationCarId(
+    ReservationProvider reservations,
+    CarProvider cars,
+  ) {
+    if (_link != _LinkType.reservation) return null;
+    final id = _selectedReservation(reservations)?.car.id;
+    return id != null && cars.carById(id) != null ? id : null;
+  }
+
+  /// Véhicule retenu : choix du client, sinon celui de la réservation liée.
+  String? _effectiveCarId(ReservationProvider reservations, CarProvider cars) =>
+      _carTouched ? _carId : (_reservationCarId(reservations, cars) ?? _carId);
+
+  Future<void> _pickCar(String? currentId) async {
+    final car = await showComplaintCarPicker(context, selectedId: currentId);
+    if (car == null || !mounted) return;
+    setState(() {
+      _carId = car.id;
+      _carTouched = true;
+      _showCarError = false;
+    });
+  }
+
+  /// « Marque Modèle Année » enregistré avec la réclamation. Voiture retirée
+  /// du catalogue entre-temps : on garde le libellé d'origine.
+  String? _carLabelFor(String? carId, CarProvider cars) {
+    if (carId == null) return null;
+    final car = cars.carById(carId);
+    if (car != null) return car.title;
+    final original = _editing;
+    return original?.carId == carId ? original!.carLabel : null;
+  }
+
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     final linkMissing =
         (_link == _LinkType.reservation && _reservationId == null) ||
         (_link == _LinkType.auction && _auctionId == null);
+    final cars = context.read<CarProvider>();
+    final reservations = context.read<ReservationProvider>();
+    final carId = _effectiveCarId(reservations, cars);
+    // Panne / propreté : véhicule obligatoire.
+    final carMissing = (_category?.requiresCar ?? false) && carId == null;
     setState(() {
       _showCategoryError = _category == null;
       _showLinkError = linkMissing;
+      _showCarError = carMissing;
       _saveFailed = false;
     });
     final fieldsOk = _formKey.currentState!.validate();
-    if (!fieldsOk || _category == null || linkMissing) return;
+    if (!fieldsOk || _category == null || linkMissing || carMissing) return;
 
     final provider = context.read<ComplaintProvider>();
     final reservation = _link == _LinkType.reservation
-        ? _selectedReservation(context.read<ReservationProvider>())
+        ? _selectedReservation(reservations)
         : null;
     final auctionId = _link == _LinkType.auction ? _auctionId : null;
+    final carLabel = _carLabelFor(carId, cars);
 
     setState(() => _saving = true);
 
@@ -592,7 +656,8 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
         status: original.status,
         reservationId: reservation?.id,
         auctionId: auctionId,
-        carLabel: reservation?.car.fullName ?? original.carLabel,
+        carId: carId,
+        carLabel: carLabel,
         agency: reservation?.pickupCity ?? original.agency,
         photoPaths: _photos,
         latitude: location?.latitude,
@@ -640,7 +705,8 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
       priority: _priority,
       reservationId: reservation?.id,
       auctionId: auctionId,
-      carLabel: reservation?.car.fullName,
+      carId: carId,
+      carLabel: carLabel,
       agency: reservation?.pickupCity ?? location?.nearestCity,
       photoPaths: _photos,
       latitude: location?.latitude,
@@ -716,6 +782,7 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
   Widget _form(AppLocalizations l) {
     final reservations = context.watch<ReservationProvider>();
     final auctions = context.watch<AuctionProvider>();
+    final cars = context.watch<CarProvider>();
 
     return ContentContainer(
       maxWidth: 720,
@@ -777,13 +844,19 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            ..._linkChoices(l, reservations, auctions),
+            ..._linkChoices(l, reservations, auctions, cars),
             if (_showLinkError)
               _ErrorText(
                 _link == _LinkType.reservation
                     ? l.complaintPickReservation
                     : l.complaintPickAuction,
               ),
+            const SizedBox(height: 22),
+
+            // --- Véhicule concerné (catalogue) ---
+            _SectionTitle(l.complaintCarLabel),
+            _carField(reservations, cars),
+            if (_showCarError) _ErrorText(l.complaintCarRequired),
             const SizedBox(height: 22),
 
             // --- Titre et description ---
@@ -1006,11 +1079,41 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
     ];
   }
 
+  /// Champ « Véhicule concerné » : voiture de la réservation liée par
+  /// défaut, modifiable via la liste du catalogue.
+  Widget _carField(ReservationProvider reservations, CarProvider cars) {
+    final carId = _effectiveCarId(reservations, cars);
+    final car = carId == null ? null : cars.carById(carId);
+    final required = _category?.requiresCar ?? false;
+    // Voiture supprimée du catalogue (modification) : libellé enregistré.
+    final removedLabel = car == null && carId != null && cars.state.isSuccess
+        ? _carLabelFor(carId, cars)
+        : null;
+    return ComplaintCarField(
+      car: car,
+      fallbackLabel: removedLabel,
+      required: required,
+      fromReservation:
+          !_carTouched &&
+          carId != null &&
+          carId == _reservationCarId(reservations, cars),
+      error: _showCarError,
+      onTap: () => _pickCar(carId),
+      onClear: required
+          ? null
+          : () => setState(() {
+              _carId = null;
+              _carTouched = true;
+            }),
+    );
+  }
+
   /// Liste des réservations / enchères à choisir (ou message si vide).
   List<Widget> _linkChoices(
     AppLocalizations l,
     ReservationProvider reservations,
     AuctionProvider auctions,
+    CarProvider cars,
   ) {
     switch (_link) {
       case _LinkType.none:
@@ -1020,32 +1123,25 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
         if (list.isEmpty) {
           return [NoticeBox(message: l.complaintNoReservation)];
         }
-        final selected = _selectedReservation(reservations);
         return [
           for (final r in list)
             _ChoiceTile(
               selected: r.id == _reservationId,
               icon: Icons.directions_car_rounded,
-              title: r.car.fullName,
+              // Nom lu dans le catalogue ; voiture retirée → référence.
+              title: cars.carById(r.car.id)?.fullName ?? r.reference,
               subtitle:
                   '${r.reference} · ${context.dateLong(r.range.start)} · '
                   '${r.pickupCity}',
               onTap: () => setState(() {
                 _reservationId = r.id;
                 _showLinkError = false;
+                // Nouvelle réservation : sa voiture est reprise d'office.
+                _carTouched = false;
+                _carId = null;
+                _showCarError = false;
               }),
             ),
-          if (selected != null) ...[
-            const SizedBox(height: 6),
-            NoticeBox(
-              icon: Icons.auto_fix_high_rounded,
-              color: AppColors.success,
-              message: l.complaintAutoFilled(
-                selected.car.fullName,
-                selected.pickupCity,
-              ),
-            ),
-          ],
         ];
       case _LinkType.auction:
         final list = _auctions(auctions);

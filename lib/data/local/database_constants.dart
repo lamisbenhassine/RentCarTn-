@@ -11,7 +11,10 @@ abstract final class DatabaseConstants {
   /// Version 8 : colonnes de profil (module User : position, permis,
   /// score de confiance, email_verified…).
   /// Version 9 : table complaints (module Réclamations).
-  static const int version = 9;
+  /// Version 10 : complaints.car_id (véhicule du catalogue concerné).
+  /// Version 11 : complaints.handled_by, abusive, closed_at (traitement admin).
+  /// Version 12 : bannissement (colonnes users.banned_* + table ban_history).
+  static const int version = 12;
 
   static const String users = 'users';
   static const String cars = 'cars';
@@ -24,4 +27,5 @@ abstract final class DatabaseConstants {
   static const String exams = 'exams';
   static const String examQuestions = 'exam_questions';
   static const String complaints = 'complaints';
+  static const String banHistory = 'ban_history';
 }

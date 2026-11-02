@@ -10,15 +10,17 @@ enum ComplaintMailResult { sent, failed, skipped }
 
 final _emailService = EmailService();
 
-/// E-mail de suivi (création, puis Résolue / Rejetée), modèle EmailJS n° 2.
+/// E-mail de suivi (création, puis chaque action de l'admin), modèle
+/// EmailJS n° 2. [message] : réponse de l'agence ({{message}}).
 ///
 /// Ne lance jamais d'exception : un échec n'annule rien (la réclamation
 /// reste enregistrée), il est seulement signalé par un debugPrint.
 /// `skipped` : modèle non configuré ou utilisateur sans e-mail.
 Future<ComplaintMailResult> sendComplaintMail(
   Complaint complaint,
-  UserProfile? user,
-) async {
+  UserProfile? user, {
+  String? message,
+}) async {
   final email = user?.email.trim() ?? '';
   if (email.isEmpty || !EmailService.complaintTemplateConfigured) {
     debugPrint(
@@ -34,6 +36,7 @@ Future<ComplaintMailResult> sendComplaintMail(
       reference: complaint.reference,
       title: complaint.title,
       status: complaint.status.label, // libellé français (comme l'historique)
+      message: message ?? '',
     );
     debugPrint(
       '[ComplaintMail] ${complaint.reference} (${complaint.status.name}) '

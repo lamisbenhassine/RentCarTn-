@@ -1,6 +1,7 @@
 import '../models/chat_message.dart';
 import '../models/complaint.dart';
 import '../models/reservation.dart';
+import 'assistant_tools.dart';
 
 /// Ce que l'assistant sait du client. Le prénom et la ville vont dans
 /// l'instruction système ; la réservation et les réclamations sont lues
@@ -10,6 +11,7 @@ class AssistantContext {
     this.firstName,
     this.city,
     this.reservation,
+    this.vehicles = const [],
     this.complaints = const [],
     this.appLanguage = 'fr',
   });
@@ -19,6 +21,9 @@ class AssistantContext {
 
   /// Réservation en cours, sinon la prochaine à venir.
   final Reservation? reservation;
+
+  /// Véhicules loués par le client, lus dans le catalogue (get_my_vehicles).
+  final List<ClientVehicle> vehicles;
 
   /// Toutes les réclamations du client.
   final List<Complaint> complaints;
@@ -56,7 +61,9 @@ PANNE OU ACCIDENT : la sécurité d'abord
 FONCTIONS
 - get_current_reservation : pour toute question sur la réservation du client (dates, agence, voiture). N'invente jamais ces informations.
 - get_my_complaints : pour suivre une réclamation (statut, réponse de l'agence).
-- create_complaint : quand le client veut signaler un problème. S'il manque l'essentiel (ce qui s'est passé), pose UNE question courte avant d'appeler la fonction. Ne demande pas de numéro de réservation : la réservation en cours est liée automatiquement.
+- get_my_vehicles : véhicules loués par le client (carId, marque, modèle, année, ville).
+- create_complaint : quand le client veut signaler un problème. S'il manque l'essentiel (ce qui s'est passé), pose UNE question courte avant d'appeler la fonction. Ne demande pas de numéro de réservation : la réservation en cours est liée automatiquement, avec sa voiture.
+  Véhicule : sans location en cours, appelle get_my_vehicles et demande au client lequel est concerné (liste « Marque Modèle Année »), puis passe son carId. N'écris JAMAIS de marque ni de modèle qui ne vient pas de ces fonctions.
   Important : create_complaint ne crée rien. Le client voit un récapitulatif et choisit Confirmer ou Modifier. Ne dis donc JAMAIS que la réclamation est créée ou envoyée ; dis que tu as préparé un récapitulatif à vérifier.
 
 LIMITES

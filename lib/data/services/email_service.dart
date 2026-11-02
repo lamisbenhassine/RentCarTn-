@@ -21,8 +21,9 @@ class EmailSendException implements Exception {
 /// Envoi d'e-mails via l'API REST EmailJS.
 ///
 /// - Modèle OTP : variables {{email}} (destinataire) et {{code}}.
-/// - Modèle réclamation : {{email}}, {{name}}, {{reference}}, {{title}},
-///   {{status}}.
+/// - Modèle n° 2 « générique » (réclamations ET compte) : {{email}},
+///   {{subject}}, {{name}}, {{intro}}, {{message}} ; {{reference}},
+///   {{title}}, {{status}} restent envoyés (anciens modèles réclamation).
 class EmailService {
   EmailService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -47,18 +48,45 @@ class EmailService {
     params: {'email': email.trim(), 'code': code},
   );
 
-  /// Confirmation de réclamation (création, puis Résolue / Rejetée).
-  /// Lance [EmailSendException] en cas d'échec.
+  /// Suivi de réclamation (création, puis chaque action de l'admin).
+  /// [message] : réponse de l'agence. Lance [EmailSendException] en cas
+  /// d'échec.
   Future<void> sendComplaintConfirmation({
     required String email,
     required String name,
     required String reference,
     required String title,
     required String status,
+    String message = '',
+  }) async {
+    await sendNotice(
+      email: email,
+      name: name,
+      subject: 'Réclamation $reference : $status',
+      intro:
+          'Votre réclamation « $title » ($reference) est maintenant : $status.',
+      message: message,
+      reference: reference,
+      title: title,
+      status: status,
+    );
+  }
+
+  /// Message générique sur le modèle n° 2 (bannissement, réactivation…).
+  /// Lance [EmailSendException] en cas d'échec ou si le modèle manque.
+  Future<void> sendNotice({
+    required String email,
+    required String name,
+    required String subject,
+    required String intro,
+    String message = '',
+    String reference = '',
+    String title = '',
+    String status = '',
   }) async {
     if (!complaintTemplateConfigured) {
       throw const EmailSendException(
-        'Template ID réclamation manquant dans emailjs_secrets.dart',
+        'Template ID n° 2 manquant dans emailjs_secrets.dart',
       );
     }
     await _send(
@@ -66,8 +94,11 @@ class EmailService {
       params: {
         'email': email.trim(),
         'name': name.trim(),
+        'subject': subject,
+        'intro': intro,
+        'message': message,
         'reference': reference,
-        'title': title,
+        'title': title.isEmpty ? subject : title,
         'status': status,
       },
     );

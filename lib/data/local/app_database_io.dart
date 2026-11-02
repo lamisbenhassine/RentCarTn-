@@ -196,9 +196,12 @@ class AppDatabase {
     await _createExamsTables(db);
     await _addUserProfileColumns(db);
     await _createComplaintsTable(db);
+    await _addComplaintCarColumn(db);
+    await _addComplaintAdminColumns(db);
+    await _addBanSchema(db);
   }
 
-  /// Version 7 : réclamations. Colonnes indexées pour les listes / filtres,
+  /// Version 9 : réclamations. Colonnes indexées pour les listes / filtres,
   /// et [payload_json] = réclamation complète (historique, photos…), comme
   /// pour les voitures. Supprimer un compte supprime ses réclamations.
   Future<void> _createComplaintsTable(Database db) async {
@@ -213,6 +216,7 @@ class AppDatabase {
         is_urgent INTEGER NOT NULL DEFAULT 0,
         reservation_id TEXT,
         auction_id TEXT,
+        car_id TEXT,
         title TEXT NOT NULL,
         payload_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
@@ -377,6 +381,86 @@ class AppDatabase {
     if (oldVersion < 9) {
       await _createComplaintsTable(db);
     }
+    if (oldVersion < 10) {
+      await _addComplaintCarColumn(db);
+    }
+    if (oldVersion < 11) {
+      await _addComplaintAdminColumns(db);
+    }
+    if (oldVersion < 12) {
+      await _addBanSchema(db);
+    }
+  }
+
+  /// Version 12 : bannissement par l'admin. Colonnes users ajoutées si
+  /// absentes + historique (un bannissement = une ligne, levée datée).
+  Future<void> _addBanSchema(Database db) async {
+    await _addMissingColumns(db, DatabaseConstants.users, const [
+      'banned_until TEXT',
+      'ban_permanent INTEGER NOT NULL DEFAULT 0',
+      'ban_reason TEXT',
+      'banned_by TEXT',
+    ]);
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${DatabaseConstants.banHistory} (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL,
+        admin_id TEXT NOT NULL,
+        admin_name TEXT,
+        reason TEXT NOT NULL,
+        start_at TEXT NOT NULL,
+        end_at TEXT, -- « end » est un mot réservé SQL
+        permanent INTEGER NOT NULL DEFAULT 0,
+        complaint_id TEXT,
+        lifted_at TEXT,
+        lifted_by TEXT,
+        FOREIGN KEY (user_id) REFERENCES ${DatabaseConstants.users} (id)
+          ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_ban_history_user '
+      'ON ${DatabaseConstants.banHistory} (user_id, start_at)',
+    );
+  }
+
+  /// Version 11 : traitement par l'admin (qui, rejet abusif, date de
+  /// clôture pour le temps moyen). Colonnes ajoutées si absentes, puis
+  /// remplies depuis payload_json pour les réclamations existantes.
+  Future<void> _addComplaintAdminColumns(Database db) async {
+    final added = await _addMissingColumns(
+      db,
+      DatabaseConstants.complaints,
+      const [
+        'handled_by TEXT',
+        'abusive INTEGER NOT NULL DEFAULT 0',
+        'closed_at TEXT',
+      ],
+    );
+    if (added.contains('abusive')) {
+      await db.execute(
+        'UPDATE ${DatabaseConstants.complaints} SET abusive = 1 '
+        "WHERE payload_json LIKE '%\"abusive\":true%'",
+      );
+    }
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_complaints_priority '
+      'ON ${DatabaseConstants.complaints} (priority, created_at)',
+    );
+  }
+
+  /// Version 10 : véhicule du catalogue lié à la réclamation. Pas de clé
+  /// étrangère : la réclamation garde son libellé si la voiture est
+  /// supprimée. Colonne ajoutée seulement si elle n'existe pas (la table
+  /// créée en v9 sur une installation neuve l'a déjà).
+  Future<void> _addComplaintCarColumn(Database db) async {
+    await _addMissingColumns(db, DatabaseConstants.complaints, const [
+      'car_id TEXT',
+    ]);
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_complaints_car '
+      'ON ${DatabaseConstants.complaints} (car_id)',
+    );
   }
 
   /// Réinitialise la base locale (dernier recours si auth cassée).

@@ -16,6 +16,7 @@ import '../../data/services/assistant_prompt.dart';
 import '../../data/services/assistant_tools.dart';
 import '../../l10n/l10n.dart';
 import '../../state/auth_provider.dart';
+import '../../state/car_provider.dart';
 import '../../state/chat_provider.dart';
 import '../../state/complaint_provider.dart';
 import '../../state/reservation_provider.dart';
@@ -181,7 +182,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
     super.initState();
     // Contexte du client (réservation en cours) : sans effet si déjà chargé.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<ReservationProvider>().load();
+      if (!mounted) return;
+      context.read<ReservationProvider>().load();
+      context.read<CarProvider>().load(); // véhicules du client (catalogue)
     });
   }
 
@@ -205,6 +208,10 @@ class _AssistantScreenState extends State<AssistantScreen> {
       firstName: user?.firstName,
       city: user?.city,
       reservation: _reservation(),
+      vehicles: clientVehicles(
+        context.read<ReservationProvider>().reservations,
+        context.read<CarProvider>().carById,
+      ),
       complaints: context.read<ComplaintProvider>().complaints,
       appLanguage: Localizations.localeOf(context).languageCode,
     );
@@ -237,6 +244,17 @@ class _AssistantScreenState extends State<AssistantScreen> {
       AppSnack.info(context, l.complaintLoginRequired);
       return;
     }
+    // Panne / propreté sans véhicule (aucun dans ses réservations) : le
+    // client le choisit dans le formulaire, rien n'est inventé.
+    final pending = message.draft;
+    if (pending != null &&
+        pending.category.requiresCar &&
+        pending.carId == null) {
+      AppSnack.info(context, l.assistantPickCar);
+      _editDraft(message);
+      return;
+    }
+    final cars = context.read<CarProvider>();
 
     final created = await context.read<ChatProvider>().confirmDraft(
       message.id,
@@ -251,7 +269,10 @@ class _AssistantScreenState extends State<AssistantScreen> {
           description: draft.description,
           priority: draft.effectivePriority,
           reservationId: linked?.id,
-          carLabel: linked?.car.fullName,
+          carId: draft.carId,
+          carLabel: draft.carId == null
+              ? null
+              : (cars.carById(draft.carId!)?.title ?? draft.carLabel),
           agency: linked?.pickupCity,
         );
       },
@@ -1064,6 +1085,15 @@ class _DraftCard extends StatelessWidget {
                 height: 1.4,
                 color: context.cs.onSurfaceVariant,
               ),
+            ),
+          ),
+          row(
+            l.complaintCarLabel,
+            Text(
+              draft.carLabel ?? l.complaintCarPick,
+              style: draft.carLabel == null
+                  ? TextStyle(fontSize: 13, color: context.cs.outline)
+                  : strong,
             ),
           ),
           row(

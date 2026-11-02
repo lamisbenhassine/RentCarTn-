@@ -254,6 +254,7 @@ class ChatProvider extends ChangeNotifier {
         final parsed = parseComplaintDraft(
           draftCall.args,
           reservation: context.reservation,
+          vehicles: context.vehicles,
         );
         if (parsed.draft != null) {
           final intro = parseAssistantReply(turn.text).text;
@@ -311,11 +312,17 @@ class ChatProvider extends ChangeNotifier {
       case AssistantTools.getMyComplaints:
         return myComplaintsResult(context.complaints);
       case AssistantTools.getCurrentReservation:
-        return currentReservationResult(context.reservation);
+        return currentReservationResult(
+          context.reservation,
+          vehicles: context.vehicles,
+        );
+      case AssistantTools.getMyVehicles:
+        return myVehiclesResult(context.vehicles);
       case AssistantTools.createComplaint:
         final parsed = parseComplaintDraft(
           call.args,
           reservation: context.reservation,
+          vehicles: context.vehicles,
         );
         return {
           'error': parsed.error ?? 'Arguments invalides',

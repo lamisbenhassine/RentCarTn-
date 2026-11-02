@@ -19,6 +19,8 @@ import '../../l10n/l10n.dart';
 import '../../state/load_state.dart';
 import '../../data/models/user_role.dart';
 import '../../state/auction_provider.dart';
+import '../../state/admin_complaint_provider.dart';
+import '../../state/admin_user_provider.dart';
 import '../../state/auth_provider.dart';
 import '../../state/complaint_provider.dart';
 import '../../state/learning_provider.dart';
@@ -191,21 +193,43 @@ class ProfileScreen extends StatelessWidget {
                   subtitle: l.profileChangePasswordSubtitle,
                   onTap: () => showChangePasswordSheet(context),
                 ),
-                _MenuItem(
-                  icon: Icons.support_agent_rounded,
-                  label: l.myComplaintsTitle,
-                  subtitle: l.myComplaintsCount(
-                    context.watch<ComplaintProvider>().complaints.length,
+                // Client : ses réclamations. Admin : le back office (toutes).
+                if (!auth.isAdmin)
+                  _MenuItem(
+                    icon: Icons.support_agent_rounded,
+                    label: l.myComplaintsTitle,
+                    subtitle: l.myComplaintsCount(
+                      context.watch<ComplaintProvider>().complaints.length,
+                    ),
+                    badge: context.watch<ComplaintProvider>().unreadCount,
+                    onTap: () => context.push(Routes.complaints),
                   ),
-                  badge: context.watch<ComplaintProvider>().unreadCount,
-                  onTap: () => context.push(Routes.complaints),
-                ),
-                _MenuItem(
-                  icon: Icons.report_problem_outlined,
-                  label: l.complaintReport,
-                  subtitle: l.complaintReportSub,
-                  onTap: () => context.push(Routes.complaintNew),
-                ),
+                if (auth.isAdmin)
+                  _MenuItem(
+                    icon: Icons.admin_panel_settings_outlined,
+                    label: l.adminComplaintsTitle,
+                    subtitle: l.adminComplaintsMenuSub(
+                      context.watch<AdminComplaintProvider>().pendingCount,
+                    ),
+                    badge: context.watch<AdminComplaintProvider>().pendingCount,
+                    onTap: () => context.push(Routes.adminComplaints),
+                  ),
+                if (auth.isAdmin)
+                  _MenuItem(
+                    icon: Icons.manage_accounts_outlined,
+                    label: l.adminUsersTitle,
+                    subtitle: l.adminUsersMenuSub(
+                      context.watch<AdminUserProvider>().bannedCount,
+                    ),
+                    onTap: () => context.push(Routes.adminUsers),
+                  ),
+                if (!auth.isAdmin)
+                  _MenuItem(
+                    icon: Icons.report_problem_outlined,
+                    label: l.complaintReport,
+                    subtitle: l.complaintReportSub,
+                    onTap: () => context.push(Routes.complaintNew),
+                  ),
                 _MenuItem(
                   icon: Icons.event_note_rounded,
                   label: l.profileReservations,
@@ -1139,7 +1163,11 @@ class _ComplaintStatsRow extends StatelessWidget {
     }
 
     return InkWell(
-      onTap: () => context.push(Routes.complaints),
+      onTap: () => context.push(
+        context.read<AuthProvider>().isAdmin
+            ? Routes.adminComplaints
+            : Routes.complaints,
+      ),
       borderRadius: BorderRadius.circular(AppTheme.radiusSm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

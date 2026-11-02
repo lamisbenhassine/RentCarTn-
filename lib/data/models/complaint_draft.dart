@@ -10,6 +10,8 @@ class ComplaintDraft {
     this.isUrgent = false,
     this.reservationId,
     this.reservationLabel,
+    this.carId,
+    this.carLabel,
   });
 
   final ComplaintCategory category;
@@ -21,6 +23,11 @@ class ComplaintDraft {
   /// Réservation liée (en cours) et son libellé pour la carte.
   final String? reservationId;
   final String? reservationLabel;
+
+  /// Véhicule du catalogue (réservation en cours ou choisi par le client
+  /// parmi ses véhicules) et son libellé « Marque Modèle Année ».
+  final String? carId;
+  final String? carLabel;
 
   /// Urgente si Gemini le signale, quelle que soit la priorité proposée.
   ComplaintPriority get effectivePriority =>
@@ -34,6 +41,8 @@ class ComplaintDraft {
     'isUrgent': isUrgent,
     'reservationId': reservationId,
     'reservationLabel': reservationLabel,
+    'carId': carId,
+    'carLabel': carLabel,
   };
 
   /// `null` si l'entrée enregistrée est illisible.
@@ -56,6 +65,8 @@ class ComplaintDraft {
       isUrgent: json['isUrgent'] == true,
       reservationId: json['reservationId'] as String?,
       reservationLabel: json['reservationLabel'] as String?,
+      carId: json['carId'] as String?,
+      carLabel: json['carLabel'] as String?,
     );
   }
 }

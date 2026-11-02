@@ -131,6 +131,7 @@ void main() {
         'create_complaint',
         'get_my_complaints',
         'get_current_reservation',
+        'get_my_vehicles',
       ]);
       final props = (decl.first['parameters'] as Map)['properties'] as Map;
       expect((props['category'] as Map)['enum'], [
@@ -162,6 +163,50 @@ void main() {
       );
     });
 
+    test('véhicule : catalogue seulement, jamais de nom inventé', () {
+      final catalogue = {for (final r in _reservations) r.car.id: r.car};
+      final vehicles = clientVehicles(_reservations, (id) => catalogue[id]);
+      // Location en cours d'abord, réservations annulées exclues.
+      expect(vehicles.first.reservation.id, _enCours.id);
+      expect(
+        vehicles.any((v) => v.reservation.status == ReservationStatus.annulee),
+        isFalse,
+      );
+      // Voiture retirée du catalogue : absente de la liste.
+      expect(clientVehicles(_reservations, (_) => null), isEmpty);
+
+      // Location en cours → sa voiture.
+      final linked = parseComplaintDraft(
+        _brakeArgs,
+        reservation: _enCours,
+        vehicles: vehicles,
+      ).draft!;
+      expect(linked.carId, _enCours.car.id);
+      expect(linked.carLabel, _enCours.car.title);
+
+      // Panne sans location en cours : le client doit choisir.
+      final ask = parseComplaintDraft(_brakeArgs, vehicles: vehicles);
+      expect(ask.draft, isNull);
+      expect(ask.error, contains('get_my_vehicles'));
+
+      // carId inventé → refusé ; carId de la liste → accepté.
+      expect(
+        parseComplaintDraft({
+          ..._brakeArgs,
+          'carId': 'voiture-inventee',
+        }, vehicles: vehicles).error,
+        contains('carId inconnu'),
+      );
+      final other = vehicles.last;
+      final chosen = parseComplaintDraft({
+        ..._brakeArgs,
+        'carId': other.car.id,
+      }, vehicles: vehicles).draft!;
+      expect(chosen.carId, other.car.id);
+      expect(chosen.reservationId, other.reservation.id);
+      expect(myVehiclesResult(vehicles)['count'], vehicles.length);
+    });
+
     test('isUrgent → priorité urgente ; arguments invalides → erreur', () {
       final urgent = parseComplaintDraft({
         ..._brakeArgs,
@@ -188,9 +233,19 @@ void main() {
       expect(list['count'], 1);
       expect(((list['complaints'] as List).single as Map)['status'], 'Résolue');
 
-      final res = currentReservationResult(_enCours)['reservation'] as Map;
+      // Voiture lue dans le catalogue : absente du catalogue → null.
+      final vehicles = [
+        ClientVehicle(car: _enCours.car, reservation: _enCours),
+      ];
+      final res =
+          currentReservationResult(_enCours, vehicles: vehicles)['reservation']
+              as Map;
       expect(res['reference'], _enCours.reference);
-      expect(res['car'], _enCours.car.fullName);
+      expect(res['car'], _enCours.car.title);
+      expect(
+        (currentReservationResult(_enCours)['reservation'] as Map)['car'],
+        isNull,
+      );
       expect(currentReservationResult(null)['reservation'], isNull);
       expect(currentOrNextReservation(_reservations)!.id, _enCours.id);
     });

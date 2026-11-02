@@ -12,6 +12,7 @@ import '../../core/utils/responsive.dart';
 import '../../data/models/complaint.dart';
 import '../../l10n/l10n.dart';
 import '../../state/auth_provider.dart';
+import '../../state/car_provider.dart';
 import '../../state/complaint_provider.dart';
 import '../../state/load_state.dart';
 import '../../state/reminder_provider.dart';
@@ -39,6 +40,15 @@ class _MyComplaintsScreenState extends State<MyComplaintsScreen> {
   String _query = '';
 
   @override
+  void initState() {
+    super.initState();
+    // Noms des véhicules (catalogue) affichés sur les cartes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<CarProvider>().load();
+    });
+  }
+
+  @override
   void dispose() {
     _search.dispose();
     super.dispose();
@@ -46,7 +56,7 @@ class _MyComplaintsScreenState extends State<MyComplaintsScreen> {
 
   Future<void> _refresh() async {
     final userId = context.read<AuthProvider>().user?.id;
-    await context.read<ComplaintProvider>().loadFor(userId, force: true);
+    await context.read<ComplaintProvider>().loadForUser(userId, force: true);
   }
 
   /// Filtre de statut + recherche (titre ou référence), plus récentes d'abord.
@@ -500,7 +510,7 @@ class _ComplaintCard extends StatelessWidget {
                     Text(
                       [
                         l.complaintCategory(c.category),
-                        if (c.carLabel != null) c.carLabel!,
+                        ?_carName(context, c),
                       ].join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -684,4 +694,12 @@ class _NotificationsOffNotice extends StatelessWidget {
       ),
     );
   }
+}
+
+/// « Marque Modèle » lu dans le catalogue ; voiture retirée → libellé
+/// enregistré avec la réclamation.
+String? _carName(BuildContext context, Complaint c) {
+  final id = c.carId;
+  final car = id == null ? null : context.watch<CarProvider>().carById(id);
+  return car?.fullName ?? c.carLabel;
 }

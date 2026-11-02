@@ -2314,6 +2314,822 @@ abstract class AppLocalizations {
   /// **'Voiture'**
   String get complaintFieldCar;
 
+  /// No description provided for @complaintCarLabel.
+  ///
+  /// In fr, this message translates to:
+  /// **'Véhicule concerné'**
+  String get complaintCarLabel;
+
+  /// No description provided for @complaintCarRequiredHint.
+  ///
+  /// In fr, this message translates to:
+  /// **'Obligatoire pour une panne ou un problème de propreté'**
+  String get complaintCarRequiredHint;
+
+  /// No description provided for @complaintCarOptionalHint.
+  ///
+  /// In fr, this message translates to:
+  /// **'Facultatif'**
+  String get complaintCarOptionalHint;
+
+  /// No description provided for @complaintCarPick.
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisir le véhicule'**
+  String get complaintCarPick;
+
+  /// No description provided for @complaintCarRequired.
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisissez le véhicule concerné.'**
+  String get complaintCarRequired;
+
+  /// No description provided for @complaintCarFromReservation.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voiture de la réservation liée'**
+  String get complaintCarFromReservation;
+
+  /// No description provided for @complaintCarSearch.
+  ///
+  /// In fr, this message translates to:
+  /// **'Rechercher : marque, modèle, ville'**
+  String get complaintCarSearch;
+
+  /// No description provided for @complaintCarEmpty.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun véhicule dans le catalogue'**
+  String get complaintCarEmpty;
+
+  /// No description provided for @complaintCarNoMatch.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun véhicule ne correspond à « {query} »'**
+  String complaintCarNoMatch(String query);
+
+  /// No description provided for @complaintCarLoadError.
+  ///
+  /// In fr, this message translates to:
+  /// **'Impossible de charger les véhicules.'**
+  String get complaintCarLoadError;
+
+  /// No description provided for @complaintCarRetry.
+  ///
+  /// In fr, this message translates to:
+  /// **'Réessayer'**
+  String get complaintCarRetry;
+
+  /// No description provided for @complaintCarRemoved.
+  ///
+  /// In fr, this message translates to:
+  /// **'Véhicule retiré du catalogue'**
+  String get complaintCarRemoved;
+
+  /// No description provided for @complaintCarOpen.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voir la fiche du véhicule'**
+  String get complaintCarOpen;
+
+  /// No description provided for @assistantPickCar.
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisissez le véhicule concerné avant d\'envoyer la réclamation.'**
+  String get assistantPickCar;
+
+  /// No description provided for @complaintEventBy.
+  ///
+  /// In fr, this message translates to:
+  /// **'par {name}'**
+  String complaintEventBy(String name);
+
+  /// No description provided for @complaintNotifResponseTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nouvelle réponse · {reference}'**
+  String complaintNotifResponseTitle(String reference);
+
+  /// No description provided for @complaintNotifResponseBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'L\'agence a répondu à votre réclamation {reference}.'**
+  String complaintNotifResponseBody(String reference);
+
+  /// No description provided for @adminComplaintsTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Réclamations clients'**
+  String get adminComplaintsTitle;
+
+  /// No description provided for @adminComplaintsMenuSub.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Aucune en attente} =1{1 en attente de traitement} other{{count} en attente de traitement}}'**
+  String adminComplaintsMenuSub(int count);
+
+  /// No description provided for @adminStatAvgTime.
+  ///
+  /// In fr, this message translates to:
+  /// **'Temps moyen de traitement'**
+  String get adminStatAvgTime;
+
+  /// No description provided for @adminStatAvgRating.
+  ///
+  /// In fr, this message translates to:
+  /// **'Satisfaction moyenne'**
+  String get adminStatAvgRating;
+
+  /// No description provided for @adminStatRating.
+  ///
+  /// In fr, this message translates to:
+  /// **'{avg}/5 · {count} avis'**
+  String adminStatRating(String avg, int count);
+
+  /// No description provided for @adminDurationDays.
+  ///
+  /// In fr, this message translates to:
+  /// **'{days} j {hours} h'**
+  String adminDurationDays(int days, int hours);
+
+  /// No description provided for @adminDurationHours.
+  ///
+  /// In fr, this message translates to:
+  /// **'{hours} h {minutes} min'**
+  String adminDurationHours(int hours, int minutes);
+
+  /// No description provided for @adminDurationMinutes.
+  ///
+  /// In fr, this message translates to:
+  /// **'{minutes} min'**
+  String adminDurationMinutes(int minutes);
+
+  /// No description provided for @adminSearchHint.
+  ///
+  /// In fr, this message translates to:
+  /// **'Référence, client ou véhicule'**
+  String get adminSearchHint;
+
+  /// No description provided for @adminFilterAll.
+  ///
+  /// In fr, this message translates to:
+  /// **'Toutes'**
+  String get adminFilterAll;
+
+  /// No description provided for @adminFilterAllPriorities.
+  ///
+  /// In fr, this message translates to:
+  /// **'Toutes priorités'**
+  String get adminFilterAllPriorities;
+
+  /// No description provided for @adminFilterAllCategories.
+  ///
+  /// In fr, this message translates to:
+  /// **'Toutes catégories'**
+  String get adminFilterAllCategories;
+
+  /// No description provided for @adminEmptyTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune réclamation'**
+  String get adminEmptyTitle;
+
+  /// No description provided for @adminEmptyMessage.
+  ///
+  /// In fr, this message translates to:
+  /// **'Les réclamations des clients apparaîtront ici.'**
+  String get adminEmptyMessage;
+
+  /// No description provided for @adminNoMatch.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune réclamation ne correspond aux filtres.'**
+  String get adminNoMatch;
+
+  /// No description provided for @adminClearFilters.
+  ///
+  /// In fr, this message translates to:
+  /// **'Effacer les filtres'**
+  String get adminClearFilters;
+
+  /// No description provided for @adminRetry.
+  ///
+  /// In fr, this message translates to:
+  /// **'Réessayer'**
+  String get adminRetry;
+
+  /// No description provided for @adminDetailsTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Traitement'**
+  String get adminDetailsTitle;
+
+  /// No description provided for @adminClientSection.
+  ///
+  /// In fr, this message translates to:
+  /// **'Client'**
+  String get adminClientSection;
+
+  /// No description provided for @adminClientDeleted.
+  ///
+  /// In fr, this message translates to:
+  /// **'Compte supprimé'**
+  String get adminClientDeleted;
+
+  /// No description provided for @adminClientTrust.
+  ///
+  /// In fr, this message translates to:
+  /// **'Score de confiance : {score}/100'**
+  String adminClientTrust(int score);
+
+  /// No description provided for @adminClientRejected.
+  ///
+  /// In fr, this message translates to:
+  /// **'{rejected, plural, =0{Aucune réclamation rejetée} =1{1 réclamation rejetée} other{{rejected} réclamations rejetées}} sur {total}'**
+  String adminClientRejected(int rejected, int total);
+
+  /// No description provided for @adminHandledBy.
+  ///
+  /// In fr, this message translates to:
+  /// **'Pris en charge par {name}'**
+  String adminHandledBy(String name);
+
+  /// No description provided for @adminActionsTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Actions'**
+  String get adminActionsTitle;
+
+  /// No description provided for @adminClosedNotice.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dossier clos : aucune action possible. Le client peut le rouvrir s\'il n\'est pas satisfait.'**
+  String get adminClosedNotice;
+
+  /// No description provided for @adminTake.
+  ///
+  /// In fr, this message translates to:
+  /// **'Prendre en charge'**
+  String get adminTake;
+
+  /// No description provided for @adminTakeConfirm.
+  ///
+  /// In fr, this message translates to:
+  /// **'Prendre en charge {reference} ? Le client sera prévenu.'**
+  String adminTakeConfirm(String reference);
+
+  /// No description provided for @adminRespond.
+  ///
+  /// In fr, this message translates to:
+  /// **'Répondre'**
+  String get adminRespond;
+
+  /// No description provided for @adminResolve.
+  ///
+  /// In fr, this message translates to:
+  /// **'Résoudre'**
+  String get adminResolve;
+
+  /// No description provided for @adminReject.
+  ///
+  /// In fr, this message translates to:
+  /// **'Rejeter'**
+  String get adminReject;
+
+  /// No description provided for @adminRejectAbusive.
+  ///
+  /// In fr, this message translates to:
+  /// **'Rejeter comme abusive'**
+  String get adminRejectAbusive;
+
+  /// No description provided for @adminRespondTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Répondre au client'**
+  String get adminRespondTitle;
+
+  /// No description provided for @adminResolveTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Résoudre la réclamation'**
+  String get adminResolveTitle;
+
+  /// No description provided for @adminRejectTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Rejeter la réclamation'**
+  String get adminRejectTitle;
+
+  /// No description provided for @adminMessageHint.
+  ///
+  /// In fr, this message translates to:
+  /// **'Votre message au client'**
+  String get adminMessageHint;
+
+  /// No description provided for @adminMessageRequired.
+  ///
+  /// In fr, this message translates to:
+  /// **'Écrivez un message d\'au moins 10 caractères.'**
+  String get adminMessageRequired;
+
+  /// No description provided for @adminAbusiveWarning.
+  ///
+  /// In fr, this message translates to:
+  /// **'Le score de confiance du client baissera de 10 points. Cette action est définitive.'**
+  String get adminAbusiveWarning;
+
+  /// No description provided for @adminAbusiveCheck.
+  ///
+  /// In fr, this message translates to:
+  /// **'Je confirme que cette réclamation est abusive'**
+  String get adminAbusiveCheck;
+
+  /// No description provided for @adminSend.
+  ///
+  /// In fr, this message translates to:
+  /// **'Envoyer'**
+  String get adminSend;
+
+  /// No description provided for @adminConfirm.
+  ///
+  /// In fr, this message translates to:
+  /// **'Confirmer'**
+  String get adminConfirm;
+
+  /// No description provided for @adminActionDone.
+  ///
+  /// In fr, this message translates to:
+  /// **'{reference} : {status}'**
+  String adminActionDone(String reference, String status);
+
+  /// No description provided for @adminResponseSent.
+  ///
+  /// In fr, this message translates to:
+  /// **'Réponse enregistrée et envoyée au client.'**
+  String get adminResponseSent;
+
+  /// No description provided for @adminActionFailed.
+  ///
+  /// In fr, this message translates to:
+  /// **'Action impossible. Réessayez.'**
+  String get adminActionFailed;
+
+  /// No description provided for @adminBanTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Bannir ce client ?'**
+  String get adminBanTitle;
+
+  /// No description provided for @adminBanMessage.
+  ///
+  /// In fr, this message translates to:
+  /// **'{name} a maintenant {count, plural, =1{1 réclamation rejetée} other{{count} réclamations rejetées}}.'**
+  String adminBanMessage(String name, int count);
+
+  /// No description provided for @adminBanLater.
+  ///
+  /// In fr, this message translates to:
+  /// **'Plus tard'**
+  String get adminBanLater;
+
+  /// No description provided for @adminBan.
+  ///
+  /// In fr, this message translates to:
+  /// **'Bannir'**
+  String get adminBan;
+
+  /// No description provided for @adminBanSoon.
+  ///
+  /// In fr, this message translates to:
+  /// **'Le bannissement sera disponible à la prochaine étape.'**
+  String get adminBanSoon;
+
+  /// No description provided for @durationMinSec.
+  ///
+  /// In fr, this message translates to:
+  /// **'{minutes} min {seconds} s'**
+  String durationMinSec(int minutes, int seconds);
+
+  /// No description provided for @suspendedTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Compte suspendu'**
+  String get suspendedTitle;
+
+  /// No description provided for @suspendedUntil.
+  ///
+  /// In fr, this message translates to:
+  /// **'Votre compte est suspendu jusqu\'au {date}.'**
+  String suspendedUntil(String date);
+
+  /// No description provided for @suspendedPermanent.
+  ///
+  /// In fr, this message translates to:
+  /// **'Votre compte est suspendu définitivement.'**
+  String get suspendedPermanent;
+
+  /// No description provided for @suspendedRemaining.
+  ///
+  /// In fr, this message translates to:
+  /// **'Temps restant'**
+  String get suspendedRemaining;
+
+  /// No description provided for @suspendedReason.
+  ///
+  /// In fr, this message translates to:
+  /// **'Motif'**
+  String get suspendedReason;
+
+  /// No description provided for @suspendedOver.
+  ///
+  /// In fr, this message translates to:
+  /// **'Votre suspension est terminée : vous pouvez vous reconnecter.'**
+  String get suspendedOver;
+
+  /// No description provided for @suspendedContact.
+  ///
+  /// In fr, this message translates to:
+  /// **'Contacter le support'**
+  String get suspendedContact;
+
+  /// No description provided for @suspendedCallAgency.
+  ///
+  /// In fr, this message translates to:
+  /// **'Appeler l\'agence'**
+  String get suspendedCallAgency;
+
+  /// No description provided for @suspendedBack.
+  ///
+  /// In fr, this message translates to:
+  /// **'Retour à la connexion'**
+  String get suspendedBack;
+
+  /// No description provided for @suspendedMailSubject.
+  ///
+  /// In fr, this message translates to:
+  /// **'Compte suspendu : {email}'**
+  String suspendedMailSubject(String email);
+
+  /// No description provided for @suspendedMailFailed.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune application e-mail. Écrivez à {email}.'**
+  String suspendedMailFailed(String email);
+
+  /// No description provided for @adminUsersTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Utilisateurs'**
+  String get adminUsersTitle;
+
+  /// No description provided for @adminUsersMenuSub.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Aucun compte suspendu} =1{1 compte suspendu} other{{count} comptes suspendus}}'**
+  String adminUsersMenuSub(int count);
+
+  /// No description provided for @adminUsersSearch.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nom, e-mail ou téléphone'**
+  String get adminUsersSearch;
+
+  /// No description provided for @adminUsersFilterAll.
+  ///
+  /// In fr, this message translates to:
+  /// **'Tous'**
+  String get adminUsersFilterAll;
+
+  /// No description provided for @adminUsersFilterBanned.
+  ///
+  /// In fr, this message translates to:
+  /// **'Bannis'**
+  String get adminUsersFilterBanned;
+
+  /// No description provided for @adminUsersFilterActive.
+  ///
+  /// In fr, this message translates to:
+  /// **'Actifs'**
+  String get adminUsersFilterActive;
+
+  /// No description provided for @adminUsersEmpty.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun utilisateur ne correspond.'**
+  String get adminUsersEmpty;
+
+  /// No description provided for @adminRoleAdmin.
+  ///
+  /// In fr, this message translates to:
+  /// **'Admin'**
+  String get adminRoleAdmin;
+
+  /// No description provided for @adminUserAbusive.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Aucune réclamation abusive} =1{1 réclamation abusive} other{{count} réclamations abusives}}'**
+  String adminUserAbusive(int count);
+
+  /// No description provided for @adminUserMemberSince.
+  ///
+  /// In fr, this message translates to:
+  /// **'Membre depuis le {date}'**
+  String adminUserMemberSince(String date);
+
+  /// No description provided for @adminUserBan.
+  ///
+  /// In fr, this message translates to:
+  /// **'Bannir'**
+  String get adminUserBan;
+
+  /// No description provided for @adminUserUnban.
+  ///
+  /// In fr, this message translates to:
+  /// **'Débannir'**
+  String get adminUserUnban;
+
+  /// No description provided for @adminUserUnbanConfirm.
+  ///
+  /// In fr, this message translates to:
+  /// **'Réactiver le compte de {name} ? Il pourra se reconnecter immédiatement.'**
+  String adminUserUnbanConfirm(String name);
+
+  /// No description provided for @adminUserIsAdmin.
+  ///
+  /// In fr, this message translates to:
+  /// **'Un compte administrateur ne peut pas être banni.'**
+  String get adminUserIsAdmin;
+
+  /// No description provided for @adminUserIsSelf.
+  ///
+  /// In fr, this message translates to:
+  /// **'Vous ne pouvez pas vous bannir vous-même.'**
+  String get adminUserIsSelf;
+
+  /// No description provided for @banBadgeUntil.
+  ///
+  /// In fr, this message translates to:
+  /// **'Banni jusqu\'au {date}'**
+  String banBadgeUntil(String date);
+
+  /// No description provided for @banBadgePermanent.
+  ///
+  /// In fr, this message translates to:
+  /// **'Banni définitivement'**
+  String get banBadgePermanent;
+
+  /// No description provided for @banCurrentTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Suspension en cours'**
+  String get banCurrentTitle;
+
+  /// No description provided for @banCurrentBy.
+  ///
+  /// In fr, this message translates to:
+  /// **'Par {name}'**
+  String banCurrentBy(String name);
+
+  /// No description provided for @banHistoryTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Historique des bannissements'**
+  String get banHistoryTitle;
+
+  /// No description provided for @banHistoryEmpty.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun bannissement.'**
+  String get banHistoryEmpty;
+
+  /// No description provided for @banHistoryActive.
+  ///
+  /// In fr, this message translates to:
+  /// **'En cours'**
+  String get banHistoryActive;
+
+  /// No description provided for @banHistoryPermanent.
+  ///
+  /// In fr, this message translates to:
+  /// **'Définitif'**
+  String get banHistoryPermanent;
+
+  /// No description provided for @banHistoryPeriod.
+  ///
+  /// In fr, this message translates to:
+  /// **'Du {start} au {end}'**
+  String banHistoryPeriod(String start, String end);
+
+  /// No description provided for @banHistorySince.
+  ///
+  /// In fr, this message translates to:
+  /// **'Depuis le {start}'**
+  String banHistorySince(String start);
+
+  /// No description provided for @banHistoryLifted.
+  ///
+  /// In fr, this message translates to:
+  /// **'Levé le {date} · {name}'**
+  String banHistoryLifted(String date, String name);
+
+  /// No description provided for @banHistoryAuto.
+  ///
+  /// In fr, this message translates to:
+  /// **'Automatique'**
+  String get banHistoryAuto;
+
+  /// No description provided for @banHistoryComplaint.
+  ///
+  /// In fr, this message translates to:
+  /// **'Réclamation {reference}'**
+  String banHistoryComplaint(String reference);
+
+  /// No description provided for @banDialogTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Bannir {name}'**
+  String banDialogTitle(String name);
+
+  /// No description provided for @banDuration.
+  ///
+  /// In fr, this message translates to:
+  /// **'Durée'**
+  String get banDuration;
+
+  /// No description provided for @ban24h.
+  ///
+  /// In fr, this message translates to:
+  /// **'24 h'**
+  String get ban24h;
+
+  /// No description provided for @ban3d.
+  ///
+  /// In fr, this message translates to:
+  /// **'3 jours'**
+  String get ban3d;
+
+  /// No description provided for @ban7d.
+  ///
+  /// In fr, this message translates to:
+  /// **'7 jours'**
+  String get ban7d;
+
+  /// No description provided for @ban30d.
+  ///
+  /// In fr, this message translates to:
+  /// **'30 jours'**
+  String get ban30d;
+
+  /// No description provided for @banCustom.
+  ///
+  /// In fr, this message translates to:
+  /// **'Personnalisée'**
+  String get banCustom;
+
+  /// No description provided for @banPermanent.
+  ///
+  /// In fr, this message translates to:
+  /// **'Définitif'**
+  String get banPermanent;
+
+  /// No description provided for @banPickDate.
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisir la date et l\'heure de fin'**
+  String get banPickDate;
+
+  /// No description provided for @banEnd.
+  ///
+  /// In fr, this message translates to:
+  /// **'Fin : {date}'**
+  String banEnd(String date);
+
+  /// No description provided for @banEndRequired.
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisissez une date de fin dans le futur.'**
+  String get banEndRequired;
+
+  /// No description provided for @banReasonLabel.
+  ///
+  /// In fr, this message translates to:
+  /// **'Motif (obligatoire)'**
+  String get banReasonLabel;
+
+  /// No description provided for @banReasonHint.
+  ///
+  /// In fr, this message translates to:
+  /// **'Affiché au client et envoyé par e-mail'**
+  String get banReasonHint;
+
+  /// No description provided for @banReasonRequired.
+  ///
+  /// In fr, this message translates to:
+  /// **'Indiquez le motif du bannissement.'**
+  String get banReasonRequired;
+
+  /// No description provided for @banFalseComplaint.
+  ///
+  /// In fr, this message translates to:
+  /// **'Fausse réclamation {reference}'**
+  String banFalseComplaint(String reference);
+
+  /// No description provided for @banSummaryTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Récapitulatif'**
+  String get banSummaryTitle;
+
+  /// No description provided for @banSummaryUntil.
+  ///
+  /// In fr, this message translates to:
+  /// **'{name} sera suspendu jusqu\'au {date} ({duration}).'**
+  String banSummaryUntil(String name, String date, String duration);
+
+  /// No description provided for @banSummaryPermanent.
+  ///
+  /// In fr, this message translates to:
+  /// **'{name} sera suspendu définitivement.'**
+  String banSummaryPermanent(String name);
+
+  /// No description provided for @banSummaryReason.
+  ///
+  /// In fr, this message translates to:
+  /// **'Motif : {reason}'**
+  String banSummaryReason(String reason);
+
+  /// No description provided for @banSummaryEffects.
+  ///
+  /// In fr, this message translates to:
+  /// **'Il sera déconnecté et ne pourra plus se connecter (e-mail ou Google). Un e-mail lui sera envoyé.'**
+  String get banSummaryEffects;
+
+  /// No description provided for @banNext.
+  ///
+  /// In fr, this message translates to:
+  /// **'Continuer'**
+  String get banNext;
+
+  /// No description provided for @banEdit.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modifier'**
+  String get banEdit;
+
+  /// No description provided for @banConfirm.
+  ///
+  /// In fr, this message translates to:
+  /// **'Confirmer le bannissement'**
+  String get banConfirm;
+
+  /// No description provided for @banDone.
+  ///
+  /// In fr, this message translates to:
+  /// **'{name} est banni.'**
+  String banDone(String name);
+
+  /// No description provided for @unbanDone.
+  ///
+  /// In fr, this message translates to:
+  /// **'{name} est réactivé.'**
+  String unbanDone(String name);
+
+  /// No description provided for @banMailSent.
+  ///
+  /// In fr, this message translates to:
+  /// **'E-mail envoyé au client.'**
+  String get banMailSent;
+
+  /// No description provided for @banMailFailed.
+  ///
+  /// In fr, this message translates to:
+  /// **'L\'e-mail au client n\'a pas pu être envoyé.'**
+  String get banMailFailed;
+
+  /// No description provided for @banFailed.
+  ///
+  /// In fr, this message translates to:
+  /// **'Bannissement impossible. Réessayez.'**
+  String get banFailed;
+
+  /// No description provided for @navMenu.
+  ///
+  /// In fr, this message translates to:
+  /// **'Menu'**
+  String get navMenu;
+
+  /// No description provided for @navMyActivity.
+  ///
+  /// In fr, this message translates to:
+  /// **'Mon activité'**
+  String get navMyActivity;
+
+  /// No description provided for @navAdministration.
+  ///
+  /// In fr, this message translates to:
+  /// **'Administration'**
+  String get navAdministration;
+
   /// No description provided for @complaintFieldAgency.
   ///
   /// In fr, this message translates to:

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../local/app_database.dart';
@@ -33,6 +34,10 @@ class SqfliteComplaintRepository implements ComplaintRepository {
     'is_urgent': c.isUrgent ? 1 : 0,
     'reservation_id': c.reservationId,
     'auction_id': c.auctionId,
+    'car_id': c.carId,
+    'handled_by': c.handledBy,
+    'abusive': c.abusive ? 1 : 0,
+    'closed_at': c.closedAt?.toIso8601String(),
     'title': c.title,
     'payload_json': jsonEncode(c.toJson()),
     'created_at': c.createdAt.toIso8601String(),
@@ -51,6 +56,12 @@ class SqfliteComplaintRepository implements ComplaintRepository {
   }
 
   @override
+  Future<List<Complaint>> getAll() async {
+    final rows = await (await _db).query(_table, orderBy: 'created_at DESC');
+    return rows.map(_fromRow).toList(growable: false);
+  }
+
+  @override
   Future<Complaint?> byId(String id) async {
     final rows = await (await _db).query(
       _table,
@@ -63,10 +74,21 @@ class SqfliteComplaintRepository implements ComplaintRepository {
 
   @override
   Future<Complaint> create(Complaint complaint) async {
-    await (await _db).insert(
+    final db = await _db;
+    await db.insert(
       _table,
       _toRow(complaint),
       conflictAlgorithm: ConflictAlgorithm.abort,
+    );
+    // Contrôle : la ligne est bien en base avec le bon user_id.
+    final count = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM $_table WHERE user_id = ?', [
+        complaint.userId,
+      ]),
+    );
+    debugPrint(
+      '[Complaint] INSERT ${complaint.reference} user_id=${complaint.userId} '
+      '→ $count ligne(s) pour ce compte',
     );
     return complaint;
   }

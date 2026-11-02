@@ -20,6 +20,8 @@ class _MemoryRepo implements ComplaintRepository {
   Future<Complaint?> byId(String id) async =>
       items.where((c) => c.id == id).firstOrNull;
   @override
+  Future<List<Complaint>> getAll() async => [...items];
+  @override
   Future<List<Complaint>> getByUser(String userId) async =>
       items.where((c) => c.userId == userId).toList();
   @override
@@ -41,7 +43,7 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     provider = ComplaintProvider(repository: _MemoryRepo());
-    await provider.loadFor('u1');
+    await provider.loadForUser('u1');
   });
 
   Future<Complaint> create() async => (await provider.create(
@@ -50,35 +52,15 @@ void main() {
     description: 'Impossible de démarrer le véhicule ce matin.',
   ))!;
 
+  /// Traitement par l'admin, vu depuis le provider du client.
+  Future<bool> step(String id, ComplaintStatus s) =>
+      provider.update(provider.byId(id)!.withEvent(s, 'Étape agence'));
+
   test('création : référence, statut, historique', () async {
     final c = await create();
     expect(c.reference, startsWith('REC-'));
     expect(c.status, ComplaintStatus.enAttente);
     expect(c.history.single.message, 'Réclamation envoyée');
-  });
-
-  test('démo : en attente → en cours → résolue avec réponse', () async {
-    final c = await create();
-    expect(await provider.simulateAgencyStep(c.id), ComplaintStatus.enCours);
-    expect(await provider.simulateAgencyStep(c.id), ComplaintStatus.resolue);
-    final done = provider.byId(c.id)!;
-    expect(done.history.map((e) => e.status), [
-      ComplaintStatus.enAttente,
-      ComplaintStatus.enCours,
-      ComplaintStatus.resolue,
-    ]);
-    expect(done.agencyResponse, isNotEmpty);
-    // Close : plus d'étape possible.
-    expect(await provider.simulateAgencyStep(c.id), isNull);
-  });
-
-  test('démo : rejet', () async {
-    final c = await create();
-    await provider.simulateAgencyStep(c.id);
-    expect(
-      await provider.simulateAgencyStep(c.id, reject: true),
-      ComplaintStatus.rejetee,
-    );
   });
 
   test('annulation seulement en attente', () async {
@@ -87,7 +69,7 @@ void main() {
     expect(provider.complaints, isEmpty);
 
     final b = await create();
-    await provider.simulateAgencyStep(b.id);
+    await step(b.id, ComplaintStatus.enCours);
     expect(await provider.cancel(b.id), isFalse);
     expect(provider.complaints.length, 1);
   });
@@ -101,7 +83,7 @@ void main() {
       expect(alerts.createdLog.single.id, c.id);
       expect(provider.unreadCount, 0);
 
-      await provider.simulateAgencyStep(c.id);
+      await step(c.id, ComplaintStatus.enCours);
       await Future<void>.delayed(Duration.zero);
       expect(alerts.statusLog.single.status, ComplaintStatus.enCours);
       expect(provider.isUnread(c.id), isTrue);
@@ -109,7 +91,7 @@ void main() {
 
       // Conservé pour l'utilisateur (rechargement de l'app).
       final reloaded = ComplaintProvider(repository: _MemoryRepoOf(provider));
-      await reloaded.loadFor('u1');
+      await reloaded.loadForUser('u1');
       expect(reloaded.unreadCount, 1);
 
       await provider.markRead(c.id);
@@ -132,13 +114,13 @@ void main() {
   test('une notification qui échoue ne bloque pas le changement', () async {
     provider.alerts = _FakeAlerts(fail: true);
     final c = await create();
-    expect(await provider.simulateAgencyStep(c.id), ComplaintStatus.enCours);
+    expect(await step(c.id, ComplaintStatus.enCours), isTrue);
   });
   test('note : seulement une fois, après résolution', () async {
     final c = await create();
     expect(await provider.rate(c.id, 5), isFalse); // pas encore résolue
-    await provider.simulateAgencyStep(c.id);
-    await provider.simulateAgencyStep(c.id);
+    await step(c.id, ComplaintStatus.enCours);
+    await step(c.id, ComplaintStatus.resolue);
     expect(await provider.rate(c.id, 0), isFalse);
     expect(await provider.rate(c.id, 4, comment: '  Rapide  '), isTrue);
     final rated = provider.byId(c.id)!;
@@ -154,8 +136,8 @@ void main() {
       final alerts = _FakeAlerts();
       provider.alerts = alerts;
       final c = await create();
-      await provider.simulateAgencyStep(c.id);
-      await provider.simulateAgencyStep(c.id);
+      await step(c.id, ComplaintStatus.enCours);
+      await step(c.id, ComplaintStatus.resolue);
       await provider.rate(c.id, 2, comment: '  ');
       expect(provider.byId(c.id)!.ratingComment, isNull);
       expect(provider.byId(c.id)!.canReopen, isTrue);
@@ -172,18 +154,15 @@ void main() {
       expect(await provider.reopen(c.id), isFalse);
     },
   );
-  test('démo : rejet comme abusive', () async {
-    final c = await create();
-    await provider.simulateAgencyStep(c.id);
-    await provider.simulateAgencyStep(c.id, reject: true, abusive: true);
-    final r = provider.byId(c.id)!;
-    expect(r.status, ComplaintStatus.rejetee);
-    expect(r.abusive, isTrue);
-    expect(r.history.last.message, contains('abusive'));
-  });
 }
 
 class _FakeAlerts implements ComplaintAlerts {
+  final respondedLog = <Complaint>[];
+
+  @override
+  Future<void> responded(Complaint complaint) async =>
+      respondedLog.add(complaint);
+
   _FakeAlerts({this.fail = false});
 
   final bool fail;

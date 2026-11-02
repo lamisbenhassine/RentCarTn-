@@ -30,6 +30,7 @@ extension L10nMessages on AppLocalizations {
     AuthErrorCode.wrongCurrentPassword => changePwdWrongCurrent,
     AuthErrorCode.deleteFailed => deleteFailed,
     AuthErrorCode.locked => loginLockedTitle,
+    AuthErrorCode.banned => suspendedTitle,
     null => commonSaveFailed,
   };
 

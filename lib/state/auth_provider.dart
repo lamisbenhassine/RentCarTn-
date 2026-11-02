@@ -4,6 +4,7 @@ import '../data/local/session_storage.dart';
 import '../data/models/user_profile.dart';
 import '../data/models/user_role.dart';
 import '../data/repositories/auth_repository.dart';
+import '../data/services/ban_service.dart';
 import '../data/services/google_auth_service.dart';
 
 /// Session utilisateur (sqflite sur téléphone, prefs sur web).
@@ -14,11 +15,25 @@ import '../data/services/google_auth_service.dart';
 ///   Google, vérification de l'e-mail, mot de passe oublié (OTP), profil,
 ///   changement de mot de passe, suppression du compte.
 class AuthProvider extends ChangeNotifier {
-  AuthProvider({AuthRepository? repository, SessionStorage? session})
-    : _repository = repository ?? AuthRepositoryFactory.create(),
-      _session = session ?? const SessionStorage();
+  AuthProvider({
+    AuthRepository? repository,
+    SessionStorage? session,
+    BanService? bans,
+  }) : _repository = repository ?? AuthRepositoryFactory.create(),
+       _session = session ?? const SessionStorage(),
+       _bansOverride = bans;
 
   final AuthRepository _repository;
+  final BanService? _bansOverride;
+
+  /// Bannissement : vérification + fin automatique (même dépôt).
+  late final BanService _bans =
+      _bansOverride ?? BanService(repository: _repository);
+
+  /// Compte refusé car suspendu : affiché par l'écran « Compte suspendu »
+  /// (le routeur y redirige tant qu'il n'est pas `null`).
+  UserProfile? _suspended;
+  UserProfile? get suspended => _suspended;
 
   /// Préférences locales : blocage de connexion, préférences par compte.
   final SessionStorage _session;
@@ -96,8 +111,12 @@ class AuthProvider extends ChangeNotifier {
         } catch (_) {}
       }
       if (id != null) {
-        _user = await _repository.byId(id);
-        if (_user == null) await _repository.clearSession();
+        final user = await _repository.byId(id);
+        if (user == null) {
+          await _repository.clearSession();
+        } else {
+          _user = await _admit(user); // session d'un compte banni → refusée
+        }
       }
     } catch (_) {
       _user = null;
@@ -119,8 +138,13 @@ class AuthProvider extends ChangeNotifier {
     _googleError = null;
     _setBusy(true);
     try {
-      final user = await _repository.signInWithGoogle();
-      if (user == null) return false; // annulé
+      final google = await _repository.signInWithGoogle();
+      if (google == null) return false; // annulé
+      final user = await _admit(google);
+      if (user == null) {
+        await _repository.signOutGoogle();
+        return false;
+      }
       _user = user;
       _error = null;
       _errorCode = null;
@@ -148,7 +172,14 @@ class AuthProvider extends ChangeNotifier {
 
     _setBusy(true);
     try {
-      _user = await _repository.login(email, password);
+      final user = await _admit(await _repository.login(email, password));
+      if (user == null) {
+        // Bon mot de passe mais compte suspendu : pas un échec de saisie.
+        _errorCode = AuthErrorCode.banned;
+        _error = AuthException.banned.message;
+        return false;
+      }
+      _user = user;
       _error = null;
       _errorCode = null;
       _failedAttempts = 0;
@@ -382,6 +413,45 @@ class AuthProvider extends ChangeNotifier {
     _busy = false;
     notifyListeners();
     return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bannissement
+  // ---------------------------------------------------------------------------
+
+  /// Compte autorisé (bannissement échu levé au passage), ou `null` s'il est
+  /// suspendu : session effacée et [suspended] renseigné.
+  Future<UserProfile?> _admit(UserProfile user) async {
+    final checked = await _bans.refresh(user);
+    if (!checked.isBanned) return checked;
+    debugPrint('[Auth] Connexion refusée : compte ${checked.id} suspendu');
+    _suspended = checked;
+    await _repository.clearSession();
+    return null;
+  }
+
+  /// Retour au premier plan : le compte a pu être banni entre-temps
+  /// (ou son bannissement a pu se terminer).
+  Future<void> recheckBan() async {
+    final current = _user;
+    if (current == null) return;
+    try {
+      final fresh = await _repository.byId(current.id);
+      if (fresh == null) return;
+      final user = await _admit(fresh);
+      _user = user;
+      if (user == null) await _repository.signOutGoogle();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[Auth] Vérification du bannissement impossible : $e');
+    }
+  }
+
+  /// « Retour à la connexion » depuis l'écran « Compte suspendu ».
+  void clearSuspended() {
+    if (_suspended == null) return;
+    _suspended = null;
+    notifyListeners();
   }
 
   /// Déconnexion : efface la session et la session Google.

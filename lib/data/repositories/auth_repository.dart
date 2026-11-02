@@ -1,4 +1,5 @@
 import '../local/app_database.dart';
+import '../models/ban_record.dart';
 import '../models/user_profile.dart';
 import '../models/user_role.dart';
 import 'auth_repository_prefs.dart';
@@ -14,6 +15,9 @@ enum AuthErrorCode {
   phoneTaken,
   wrongCurrentPassword,
   deleteFailed,
+
+  /// Compte suspendu par l'admin (écran « Compte suspendu »).
+  banned,
 }
 
 class AuthException implements Exception {
@@ -44,6 +48,10 @@ class AuthException implements Exception {
   static const deleteFailed = AuthException(
     'La suppression du compte a échoué.',
     code: AuthErrorCode.deleteFailed,
+  );
+  static const banned = AuthException(
+    'Ce compte est suspendu.',
+    code: AuthErrorCode.banned,
   );
 
   @override
@@ -117,6 +125,26 @@ abstract class AuthRepository {
 
   /// Nouveau mot de passe après vérification du code OTP.
   Future<void> resetPassword(UserProfile user, String newPassword);
+
+  // --- Bannissement (back office admin, voir BanService) ---
+
+  /// Tous les comptes (écran admin « Utilisateurs »).
+  Future<List<UserProfile>> getAllUsers();
+
+  /// Écrit le bannissement sur le compte et l'ajoute à l'historique.
+  /// [end] `null` seulement si [record] est définitif.
+  Future<UserProfile> banUser(BanRecord record);
+
+  /// Lève le bannissement en cours : champs du compte effacés, ligne
+  /// d'historique datée ([liftedBy] = nom de l'admin ou « Automatique »).
+  Future<UserProfile> unbanUser(
+    String userId, {
+    required String liftedBy,
+    DateTime? at,
+  });
+
+  /// Historique des bannissements, le plus récent d'abord.
+  Future<List<BanRecord>> getBanHistory(String userId);
 }
 
 /// - Mobile / APK → **sqflite**

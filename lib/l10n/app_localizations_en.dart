@@ -1350,6 +1350,528 @@ class AppLocalizationsEn extends AppLocalizations {
   String get complaintFieldCar => 'Car';
 
   @override
+  String get complaintCarLabel => 'Vehicle concerned';
+
+  @override
+  String get complaintCarRequiredHint =>
+      'Required for a breakdown or a cleanliness issue';
+
+  @override
+  String get complaintCarOptionalHint => 'Optional';
+
+  @override
+  String get complaintCarPick => 'Choose the vehicle';
+
+  @override
+  String get complaintCarRequired => 'Choose the vehicle concerned.';
+
+  @override
+  String get complaintCarFromReservation => 'Car from the linked booking';
+
+  @override
+  String get complaintCarSearch => 'Search: brand, model, city';
+
+  @override
+  String get complaintCarEmpty => 'No vehicle in the catalogue';
+
+  @override
+  String complaintCarNoMatch(String query) {
+    return 'No vehicle matches \"$query\"';
+  }
+
+  @override
+  String get complaintCarLoadError => 'Unable to load the vehicles.';
+
+  @override
+  String get complaintCarRetry => 'Retry';
+
+  @override
+  String get complaintCarRemoved => 'Vehicle removed from the catalogue';
+
+  @override
+  String get complaintCarOpen => 'View the vehicle page';
+
+  @override
+  String get assistantPickCar =>
+      'Choose the vehicle concerned before sending the complaint.';
+
+  @override
+  String complaintEventBy(String name) {
+    return 'by $name';
+  }
+
+  @override
+  String complaintNotifResponseTitle(String reference) {
+    return 'New reply · $reference';
+  }
+
+  @override
+  String complaintNotifResponseBody(String reference) {
+    return 'The agency replied to your complaint $reference.';
+  }
+
+  @override
+  String get adminComplaintsTitle => 'Customer complaints';
+
+  @override
+  String adminComplaintsMenuSub(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count waiting to be handled',
+      one: '1 waiting to be handled',
+      zero: 'None pending',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get adminStatAvgTime => 'Average handling time';
+
+  @override
+  String get adminStatAvgRating => 'Average satisfaction';
+
+  @override
+  String adminStatRating(String avg, int count) {
+    return '$avg/5 · $count reviews';
+  }
+
+  @override
+  String adminDurationDays(int days, int hours) {
+    return '$days d $hours h';
+  }
+
+  @override
+  String adminDurationHours(int hours, int minutes) {
+    return '$hours h $minutes min';
+  }
+
+  @override
+  String adminDurationMinutes(int minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String get adminSearchHint => 'Reference, customer or vehicle';
+
+  @override
+  String get adminFilterAll => 'All';
+
+  @override
+  String get adminFilterAllPriorities => 'All priorities';
+
+  @override
+  String get adminFilterAllCategories => 'All categories';
+
+  @override
+  String get adminEmptyTitle => 'No complaints';
+
+  @override
+  String get adminEmptyMessage => 'Customer complaints will appear here.';
+
+  @override
+  String get adminNoMatch => 'No complaint matches the filters.';
+
+  @override
+  String get adminClearFilters => 'Clear filters';
+
+  @override
+  String get adminRetry => 'Retry';
+
+  @override
+  String get adminDetailsTitle => 'Handling';
+
+  @override
+  String get adminClientSection => 'Customer';
+
+  @override
+  String get adminClientDeleted => 'Deleted account';
+
+  @override
+  String adminClientTrust(int score) {
+    return 'Trust score: $score/100';
+  }
+
+  @override
+  String adminClientRejected(int rejected, int total) {
+    String _temp0 = intl.Intl.pluralLogic(
+      rejected,
+      locale: localeName,
+      other: '$rejected rejected complaints',
+      one: '1 rejected complaint',
+      zero: 'No rejected complaint',
+    );
+    return '$_temp0 out of $total';
+  }
+
+  @override
+  String adminHandledBy(String name) {
+    return 'Handled by $name';
+  }
+
+  @override
+  String get adminActionsTitle => 'Actions';
+
+  @override
+  String get adminClosedNotice =>
+      'Closed case: no action available. The customer can reopen it if unsatisfied.';
+
+  @override
+  String get adminTake => 'Take charge';
+
+  @override
+  String adminTakeConfirm(String reference) {
+    return 'Take charge of $reference? The customer will be notified.';
+  }
+
+  @override
+  String get adminRespond => 'Reply';
+
+  @override
+  String get adminResolve => 'Resolve';
+
+  @override
+  String get adminReject => 'Reject';
+
+  @override
+  String get adminRejectAbusive => 'Reject as abusive';
+
+  @override
+  String get adminRespondTitle => 'Reply to the customer';
+
+  @override
+  String get adminResolveTitle => 'Resolve the complaint';
+
+  @override
+  String get adminRejectTitle => 'Reject the complaint';
+
+  @override
+  String get adminMessageHint => 'Your message to the customer';
+
+  @override
+  String get adminMessageRequired =>
+      'Write a message of at least 10 characters.';
+
+  @override
+  String get adminAbusiveWarning =>
+      'The customer\'s trust score will drop by 10 points. This action is final.';
+
+  @override
+  String get adminAbusiveCheck => 'I confirm this complaint is abusive';
+
+  @override
+  String get adminSend => 'Send';
+
+  @override
+  String get adminConfirm => 'Confirm';
+
+  @override
+  String adminActionDone(String reference, String status) {
+    return '$reference: $status';
+  }
+
+  @override
+  String get adminResponseSent => 'Reply saved and sent to the customer.';
+
+  @override
+  String get adminActionFailed => 'Action failed. Please try again.';
+
+  @override
+  String get adminBanTitle => 'Ban this customer?';
+
+  @override
+  String adminBanMessage(String name, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count rejected complaints',
+      one: '1 rejected complaint',
+    );
+    return '$name now has $_temp0.';
+  }
+
+  @override
+  String get adminBanLater => 'Later';
+
+  @override
+  String get adminBan => 'Ban';
+
+  @override
+  String get adminBanSoon => 'Banning will be available in the next step.';
+
+  @override
+  String durationMinSec(int minutes, int seconds) {
+    return '$minutes min $seconds s';
+  }
+
+  @override
+  String get suspendedTitle => 'Account suspended';
+
+  @override
+  String suspendedUntil(String date) {
+    return 'Your account is suspended until $date.';
+  }
+
+  @override
+  String get suspendedPermanent => 'Your account is permanently suspended.';
+
+  @override
+  String get suspendedRemaining => 'Time remaining';
+
+  @override
+  String get suspendedReason => 'Reason';
+
+  @override
+  String get suspendedOver => 'Your suspension is over: you can sign in again.';
+
+  @override
+  String get suspendedContact => 'Contact support';
+
+  @override
+  String get suspendedCallAgency => 'Call the agency';
+
+  @override
+  String get suspendedBack => 'Back to sign in';
+
+  @override
+  String suspendedMailSubject(String email) {
+    return 'Suspended account: $email';
+  }
+
+  @override
+  String suspendedMailFailed(String email) {
+    return 'No email app found. Write to $email.';
+  }
+
+  @override
+  String get adminUsersTitle => 'Users';
+
+  @override
+  String adminUsersMenuSub(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count suspended accounts',
+      one: '1 suspended account',
+      zero: 'No suspended account',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get adminUsersSearch => 'Name, email or phone';
+
+  @override
+  String get adminUsersFilterAll => 'All';
+
+  @override
+  String get adminUsersFilterBanned => 'Banned';
+
+  @override
+  String get adminUsersFilterActive => 'Active';
+
+  @override
+  String get adminUsersEmpty => 'No user matches.';
+
+  @override
+  String get adminRoleAdmin => 'Admin';
+
+  @override
+  String adminUserAbusive(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count abusive complaints',
+      one: '1 abusive complaint',
+      zero: 'No abusive complaint',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String adminUserMemberSince(String date) {
+    return 'Member since $date';
+  }
+
+  @override
+  String get adminUserBan => 'Ban';
+
+  @override
+  String get adminUserUnban => 'Unban';
+
+  @override
+  String adminUserUnbanConfirm(String name) {
+    return 'Reactivate $name\'s account? They can sign in again immediately.';
+  }
+
+  @override
+  String get adminUserIsAdmin => 'An administrator account cannot be banned.';
+
+  @override
+  String get adminUserIsSelf => 'You cannot ban yourself.';
+
+  @override
+  String banBadgeUntil(String date) {
+    return 'Banned until $date';
+  }
+
+  @override
+  String get banBadgePermanent => 'Permanently banned';
+
+  @override
+  String get banCurrentTitle => 'Current suspension';
+
+  @override
+  String banCurrentBy(String name) {
+    return 'By $name';
+  }
+
+  @override
+  String get banHistoryTitle => 'Ban history';
+
+  @override
+  String get banHistoryEmpty => 'No ban.';
+
+  @override
+  String get banHistoryActive => 'Active';
+
+  @override
+  String get banHistoryPermanent => 'Permanent';
+
+  @override
+  String banHistoryPeriod(String start, String end) {
+    return 'From $start to $end';
+  }
+
+  @override
+  String banHistorySince(String start) {
+    return 'Since $start';
+  }
+
+  @override
+  String banHistoryLifted(String date, String name) {
+    return 'Lifted on $date · $name';
+  }
+
+  @override
+  String get banHistoryAuto => 'Automatic';
+
+  @override
+  String banHistoryComplaint(String reference) {
+    return 'Complaint $reference';
+  }
+
+  @override
+  String banDialogTitle(String name) {
+    return 'Ban $name';
+  }
+
+  @override
+  String get banDuration => 'Duration';
+
+  @override
+  String get ban24h => '24 h';
+
+  @override
+  String get ban3d => '3 days';
+
+  @override
+  String get ban7d => '7 days';
+
+  @override
+  String get ban30d => '30 days';
+
+  @override
+  String get banCustom => 'Custom';
+
+  @override
+  String get banPermanent => 'Permanent';
+
+  @override
+  String get banPickDate => 'Choose the end date and time';
+
+  @override
+  String banEnd(String date) {
+    return 'Ends: $date';
+  }
+
+  @override
+  String get banEndRequired => 'Choose an end date in the future.';
+
+  @override
+  String get banReasonLabel => 'Reason (required)';
+
+  @override
+  String get banReasonHint => 'Shown to the customer and sent by email';
+
+  @override
+  String get banReasonRequired => 'Enter the reason for the ban.';
+
+  @override
+  String banFalseComplaint(String reference) {
+    return 'False complaint $reference';
+  }
+
+  @override
+  String get banSummaryTitle => 'Summary';
+
+  @override
+  String banSummaryUntil(String name, String date, String duration) {
+    return '$name will be suspended until $date ($duration).';
+  }
+
+  @override
+  String banSummaryPermanent(String name) {
+    return '$name will be permanently suspended.';
+  }
+
+  @override
+  String banSummaryReason(String reason) {
+    return 'Reason: $reason';
+  }
+
+  @override
+  String get banSummaryEffects =>
+      'They will be signed out and unable to sign in (email or Google). An email will be sent to them.';
+
+  @override
+  String get banNext => 'Continue';
+
+  @override
+  String get banEdit => 'Edit';
+
+  @override
+  String get banConfirm => 'Confirm the ban';
+
+  @override
+  String banDone(String name) {
+    return '$name is banned.';
+  }
+
+  @override
+  String unbanDone(String name) {
+    return '$name is reactivated.';
+  }
+
+  @override
+  String get banMailSent => 'Email sent to the customer.';
+
+  @override
+  String get banMailFailed => 'The email to the customer could not be sent.';
+
+  @override
+  String get banFailed => 'Ban failed. Please try again.';
+
+  @override
+  String get navMenu => 'Menu';
+
+  @override
+  String get navMyActivity => 'My activity';
+
+  @override
+  String get navAdministration => 'Administration';
+
+  @override
   String get complaintFieldAgency => 'Agency';
 
   @override

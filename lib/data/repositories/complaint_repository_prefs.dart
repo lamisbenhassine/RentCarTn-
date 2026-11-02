@@ -13,8 +13,9 @@ class PrefsComplaintRepository implements ComplaintRepository {
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
+  /// Relu à chaque appel : une autre instance (ou un autre compte) a pu
+  /// écrire entre-temps — un cache figé cachait les nouvelles réclamations.
   Future<List<Complaint>> _load() async {
-    if (_cache != null) return _cache!;
     final raw = (await _prefs).getString(_storageKey);
     if (raw == null || raw.isEmpty) return _cache = [];
     final decoded = jsonDecode(raw) as List<dynamic>;
@@ -33,6 +34,13 @@ class PrefsComplaintRepository implements ComplaintRepository {
   @override
   Future<List<Complaint>> getByUser(String userId) async {
     final items = (await _load()).where((c) => c.userId == userId).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return List.unmodifiable(items);
+  }
+
+  @override
+  Future<List<Complaint>> getAll() async {
+    final items = [...await _load()]
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return List.unmodifiable(items);
   }

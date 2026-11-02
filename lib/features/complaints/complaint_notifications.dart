@@ -91,6 +91,22 @@ class ComplaintNotifications implements ComplaintAlerts {
     );
   }
 
+  /// Réponse de l'admin sans changement de statut.
+  @override
+  Future<void> responded(Complaint complaint) async {
+    if (!_service.isSupported || !await _service.areEnabled()) return;
+    final l = l10n();
+    await _service.show(
+      id: idFor(complaint.id),
+      title: l.complaintNotifResponseTitle(complaint.reference),
+      body: l.complaintNotifResponseBody(complaint.reference),
+      route: Routes.complaint(complaint.id),
+      channelId: channelId,
+      channelName: l.complaintNotifChannel,
+      channelDescription: l.complaintNotifChannelDesc,
+    );
+  }
+
   /// Android 13+ : POST_NOTIFICATIONS demandée une seule fois ici.
   Future<bool> _ensurePermission() async {
     if (await _service.areEnabled()) return true;

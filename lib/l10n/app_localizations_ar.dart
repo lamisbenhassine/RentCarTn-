@@ -1365,6 +1365,525 @@ class AppLocalizationsAr extends AppLocalizations {
   String get complaintFieldCar => 'السيارة';
 
   @override
+  String get complaintCarLabel => 'السيارة المعنية';
+
+  @override
+  String get complaintCarRequiredHint => 'إجباري في حالة عطل أو مشكلة نظافة';
+
+  @override
+  String get complaintCarOptionalHint => 'اختياري';
+
+  @override
+  String get complaintCarPick => 'اختر السيارة';
+
+  @override
+  String get complaintCarRequired => 'اختر السيارة المعنية.';
+
+  @override
+  String get complaintCarFromReservation => 'سيارة الحجز المرتبط';
+
+  @override
+  String get complaintCarSearch => 'بحث: العلامة، الطراز، المدينة';
+
+  @override
+  String get complaintCarEmpty => 'لا توجد سيارات في الكتالوج';
+
+  @override
+  String complaintCarNoMatch(String query) {
+    return 'لا توجد سيارة تطابق «$query»';
+  }
+
+  @override
+  String get complaintCarLoadError => 'تعذر تحميل السيارات.';
+
+  @override
+  String get complaintCarRetry => 'إعادة المحاولة';
+
+  @override
+  String get complaintCarRemoved => 'سيارة سُحبت من الكتالوج';
+
+  @override
+  String get complaintCarOpen => 'عرض صفحة السيارة';
+
+  @override
+  String get assistantPickCar => 'اختر السيارة المعنية قبل إرسال الشكوى.';
+
+  @override
+  String complaintEventBy(String name) {
+    return 'بواسطة $name';
+  }
+
+  @override
+  String complaintNotifResponseTitle(String reference) {
+    return 'رد جديد · $reference';
+  }
+
+  @override
+  String complaintNotifResponseBody(String reference) {
+    return 'ردت الوكالة على شكواك $reference.';
+  }
+
+  @override
+  String get adminComplaintsTitle => 'شكاوى الحرفاء';
+
+  @override
+  String adminComplaintsMenuSub(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count شكاوى في انتظار المعالجة',
+      one: 'شكوى واحدة في انتظار المعالجة',
+      zero: 'لا توجد شكاوى في الانتظار',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get adminStatAvgTime => 'متوسط مدة المعالجة';
+
+  @override
+  String get adminStatAvgRating => 'متوسط الرضا';
+
+  @override
+  String adminStatRating(String avg, int count) {
+    return '$avg/5 · $count تقييم';
+  }
+
+  @override
+  String adminDurationDays(int days, int hours) {
+    return '$days ي $hours س';
+  }
+
+  @override
+  String adminDurationHours(int hours, int minutes) {
+    return '$hours س $minutes د';
+  }
+
+  @override
+  String adminDurationMinutes(int minutes) {
+    return '$minutes د';
+  }
+
+  @override
+  String get adminSearchHint => 'المرجع أو الحريف أو السيارة';
+
+  @override
+  String get adminFilterAll => 'الكل';
+
+  @override
+  String get adminFilterAllPriorities => 'كل الأولويات';
+
+  @override
+  String get adminFilterAllCategories => 'كل الفئات';
+
+  @override
+  String get adminEmptyTitle => 'لا توجد شكاوى';
+
+  @override
+  String get adminEmptyMessage => 'ستظهر شكاوى الحرفاء هنا.';
+
+  @override
+  String get adminNoMatch => 'لا توجد شكوى تطابق المرشحات.';
+
+  @override
+  String get adminClearFilters => 'مسح المرشحات';
+
+  @override
+  String get adminRetry => 'إعادة المحاولة';
+
+  @override
+  String get adminDetailsTitle => 'المعالجة';
+
+  @override
+  String get adminClientSection => 'الحريف';
+
+  @override
+  String get adminClientDeleted => 'حساب محذوف';
+
+  @override
+  String adminClientTrust(int score) {
+    return 'درجة الثقة: $score/100';
+  }
+
+  @override
+  String adminClientRejected(int rejected, int total) {
+    String _temp0 = intl.Intl.pluralLogic(
+      rejected,
+      locale: localeName,
+      other: '$rejected شكاوى مرفوضة',
+      one: 'شكوى مرفوضة واحدة',
+      zero: 'لا توجد شكوى مرفوضة',
+    );
+    return '$_temp0 من $total';
+  }
+
+  @override
+  String adminHandledBy(String name) {
+    return 'تكفل بها $name';
+  }
+
+  @override
+  String get adminActionsTitle => 'الإجراءات';
+
+  @override
+  String get adminClosedNotice =>
+      'ملف مغلق: لا يوجد إجراء ممكن. يمكن للحريف إعادة فتحه إن لم يكن راضيًا.';
+
+  @override
+  String get adminTake => 'التكفل';
+
+  @override
+  String adminTakeConfirm(String reference) {
+    return 'التكفل بـ $reference؟ سيتم إعلام الحريف.';
+  }
+
+  @override
+  String get adminRespond => 'الرد';
+
+  @override
+  String get adminResolve => 'حل';
+
+  @override
+  String get adminReject => 'رفض';
+
+  @override
+  String get adminRejectAbusive => 'رفض كشكوى تعسفية';
+
+  @override
+  String get adminRespondTitle => 'الرد على الحريف';
+
+  @override
+  String get adminResolveTitle => 'حل الشكوى';
+
+  @override
+  String get adminRejectTitle => 'رفض الشكوى';
+
+  @override
+  String get adminMessageHint => 'رسالتك إلى الحريف';
+
+  @override
+  String get adminMessageRequired => 'اكتب رسالة من 10 أحرف على الأقل.';
+
+  @override
+  String get adminAbusiveWarning =>
+      'ستنخفض درجة ثقة الحريف بـ 10 نقاط. هذا الإجراء نهائي.';
+
+  @override
+  String get adminAbusiveCheck => 'أؤكد أن هذه الشكوى تعسفية';
+
+  @override
+  String get adminSend => 'إرسال';
+
+  @override
+  String get adminConfirm => 'تأكيد';
+
+  @override
+  String adminActionDone(String reference, String status) {
+    return '$reference : $status';
+  }
+
+  @override
+  String get adminResponseSent => 'تم حفظ الرد وإرساله إلى الحريف.';
+
+  @override
+  String get adminActionFailed => 'تعذر تنفيذ الإجراء. أعد المحاولة.';
+
+  @override
+  String get adminBanTitle => 'حظر هذا الحريف؟';
+
+  @override
+  String adminBanMessage(String name, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count شكاوى مرفوضة',
+      one: 'شكوى مرفوضة واحدة',
+    );
+    return 'لدى $name الآن $_temp0.';
+  }
+
+  @override
+  String get adminBanLater => 'لاحقًا';
+
+  @override
+  String get adminBan => 'حظر';
+
+  @override
+  String get adminBanSoon => 'سيتوفر الحظر في المرحلة القادمة.';
+
+  @override
+  String durationMinSec(int minutes, int seconds) {
+    return '$minutes د $seconds ث';
+  }
+
+  @override
+  String get suspendedTitle => 'الحساب موقوف';
+
+  @override
+  String suspendedUntil(String date) {
+    return 'حسابك موقوف حتى $date.';
+  }
+
+  @override
+  String get suspendedPermanent => 'حسابك موقوف نهائيًا.';
+
+  @override
+  String get suspendedRemaining => 'الوقت المتبقي';
+
+  @override
+  String get suspendedReason => 'السبب';
+
+  @override
+  String get suspendedOver => 'انتهى الإيقاف: يمكنك تسجيل الدخول من جديد.';
+
+  @override
+  String get suspendedContact => 'الاتصال بالدعم';
+
+  @override
+  String get suspendedCallAgency => 'الاتصال بالوكالة';
+
+  @override
+  String get suspendedBack => 'العودة إلى تسجيل الدخول';
+
+  @override
+  String suspendedMailSubject(String email) {
+    return 'حساب موقوف: $email';
+  }
+
+  @override
+  String suspendedMailFailed(String email) {
+    return 'لا يوجد تطبيق بريد. اكتب إلى $email.';
+  }
+
+  @override
+  String get adminUsersTitle => 'المستخدمون';
+
+  @override
+  String adminUsersMenuSub(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count حسابات موقوفة',
+      one: 'حساب موقوف واحد',
+      zero: 'لا يوجد حساب موقوف',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get adminUsersSearch => 'الاسم أو البريد أو الهاتف';
+
+  @override
+  String get adminUsersFilterAll => 'الكل';
+
+  @override
+  String get adminUsersFilterBanned => 'المحظورون';
+
+  @override
+  String get adminUsersFilterActive => 'النشطون';
+
+  @override
+  String get adminUsersEmpty => 'لا يوجد مستخدم مطابق.';
+
+  @override
+  String get adminRoleAdmin => 'مشرف';
+
+  @override
+  String adminUserAbusive(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count شكاوى تعسفية',
+      one: 'شكوى تعسفية واحدة',
+      zero: 'لا توجد شكوى تعسفية',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String adminUserMemberSince(String date) {
+    return 'عضو منذ $date';
+  }
+
+  @override
+  String get adminUserBan => 'حظر';
+
+  @override
+  String get adminUserUnban => 'رفع الحظر';
+
+  @override
+  String adminUserUnbanConfirm(String name) {
+    return 'إعادة تفعيل حساب $name؟ سيتمكن من الدخول فورًا.';
+  }
+
+  @override
+  String get adminUserIsAdmin => 'لا يمكن حظر حساب مشرف.';
+
+  @override
+  String get adminUserIsSelf => 'لا يمكنك حظر نفسك.';
+
+  @override
+  String banBadgeUntil(String date) {
+    return 'محظور حتى $date';
+  }
+
+  @override
+  String get banBadgePermanent => 'محظور نهائيًا';
+
+  @override
+  String get banCurrentTitle => 'إيقاف جارٍ';
+
+  @override
+  String banCurrentBy(String name) {
+    return 'بواسطة $name';
+  }
+
+  @override
+  String get banHistoryTitle => 'سجل الحظر';
+
+  @override
+  String get banHistoryEmpty => 'لا يوجد حظر.';
+
+  @override
+  String get banHistoryActive => 'جارٍ';
+
+  @override
+  String get banHistoryPermanent => 'نهائي';
+
+  @override
+  String banHistoryPeriod(String start, String end) {
+    return 'من $start إلى $end';
+  }
+
+  @override
+  String banHistorySince(String start) {
+    return 'منذ $start';
+  }
+
+  @override
+  String banHistoryLifted(String date, String name) {
+    return 'رُفع في $date · $name';
+  }
+
+  @override
+  String get banHistoryAuto => 'تلقائي';
+
+  @override
+  String banHistoryComplaint(String reference) {
+    return 'الشكوى $reference';
+  }
+
+  @override
+  String banDialogTitle(String name) {
+    return 'حظر $name';
+  }
+
+  @override
+  String get banDuration => 'المدة';
+
+  @override
+  String get ban24h => '24 س';
+
+  @override
+  String get ban3d => '3 أيام';
+
+  @override
+  String get ban7d => '7 أيام';
+
+  @override
+  String get ban30d => '30 يومًا';
+
+  @override
+  String get banCustom => 'مخصصة';
+
+  @override
+  String get banPermanent => 'نهائي';
+
+  @override
+  String get banPickDate => 'اختر تاريخ ووقت النهاية';
+
+  @override
+  String banEnd(String date) {
+    return 'النهاية: $date';
+  }
+
+  @override
+  String get banEndRequired => 'اختر تاريخ نهاية في المستقبل.';
+
+  @override
+  String get banReasonLabel => 'السبب (إجباري)';
+
+  @override
+  String get banReasonHint => 'يظهر للحريف ويُرسل بالبريد';
+
+  @override
+  String get banReasonRequired => 'اذكر سبب الحظر.';
+
+  @override
+  String banFalseComplaint(String reference) {
+    return 'شكوى كاذبة $reference';
+  }
+
+  @override
+  String get banSummaryTitle => 'ملخص';
+
+  @override
+  String banSummaryUntil(String name, String date, String duration) {
+    return 'سيتم إيقاف $name حتى $date ($duration).';
+  }
+
+  @override
+  String banSummaryPermanent(String name) {
+    return 'سيتم إيقاف $name نهائيًا.';
+  }
+
+  @override
+  String banSummaryReason(String reason) {
+    return 'السبب: $reason';
+  }
+
+  @override
+  String get banSummaryEffects =>
+      'سيتم تسجيل خروجه ولن يتمكن من الدخول (البريد أو Google). ستُرسل إليه رسالة.';
+
+  @override
+  String get banNext => 'متابعة';
+
+  @override
+  String get banEdit => 'تعديل';
+
+  @override
+  String get banConfirm => 'تأكيد الحظر';
+
+  @override
+  String banDone(String name) {
+    return 'تم حظر $name.';
+  }
+
+  @override
+  String unbanDone(String name) {
+    return 'تمت إعادة تفعيل $name.';
+  }
+
+  @override
+  String get banMailSent => 'تم إرسال البريد إلى الحريف.';
+
+  @override
+  String get banMailFailed => 'تعذر إرسال البريد إلى الحريف.';
+
+  @override
+  String get banFailed => 'تعذر الحظر. أعد المحاولة.';
+
+  @override
+  String get navMenu => 'القائمة';
+
+  @override
+  String get navMyActivity => 'نشاطي';
+
+  @override
+  String get navAdministration => 'الإدارة';
+
+  @override
   String get complaintFieldAgency => 'الوكالة';
 
   @override

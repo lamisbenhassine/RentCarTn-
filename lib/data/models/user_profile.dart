@@ -22,6 +22,10 @@ class UserProfile {
     this.licenceExpiry,
     this.trustScore = 50,
     this.emailVerified = false,
+    this.bannedUntil,
+    this.banPermanent = false,
+    this.banReason,
+    this.bannedBy,
   });
 
   final String id;
@@ -55,6 +59,25 @@ class UserProfile {
   /// Tant que `false`, le routeur bloque l'accès à l'application.
   final bool emailVerified;
 
+  /// Bannissement par l'admin : fin prévue (temporaire), ou [banPermanent].
+  /// Écrits uniquement par banUser / unbanUser (jamais par updateProfile).
+  final DateTime? bannedUntil;
+  final bool banPermanent;
+  final String? banReason;
+
+  /// Nom de l'admin qui a banni le compte.
+  final String? bannedBy;
+
+  /// Compte suspendu à [now] : définitif, ou date de fin pas encore passée.
+  bool isBannedAt(DateTime now) =>
+      banPermanent || (bannedUntil != null && bannedUntil!.isAfter(now));
+
+  bool get isBanned => isBannedAt(DateTime.now());
+
+  /// Bannissement temporaire terminé mais pas encore levé en base
+  /// (réactivation automatique à la prochaine vérification).
+  bool get hasExpiredBan => !banPermanent && bannedUntil != null && !isBanned;
+
   String get fullName => '$firstName $lastName';
 
   bool get isAdmin => role.isAdmin;
@@ -86,7 +109,14 @@ class UserProfile {
     DateTime? licenceExpiry,
     int? trustScore,
     bool? emailVerified,
+    DateTime? bannedUntil,
+    bool? banPermanent,
+    String? banReason,
+    String? bannedBy,
     bool clearAvatar = false,
+
+    /// Lève le bannissement (efface les 4 champs).
+    bool clearBan = false,
   }) {
     return UserProfile(
       id: id,
@@ -108,6 +138,10 @@ class UserProfile {
       licenceExpiry: licenceExpiry ?? this.licenceExpiry,
       trustScore: trustScore ?? this.trustScore,
       emailVerified: emailVerified ?? this.emailVerified,
+      bannedUntil: clearBan ? null : (bannedUntil ?? this.bannedUntil),
+      banPermanent: clearBan ? false : (banPermanent ?? this.banPermanent),
+      banReason: clearBan ? null : (banReason ?? this.banReason),
+      bannedBy: clearBan ? null : (bannedBy ?? this.bannedBy),
     );
   }
 }

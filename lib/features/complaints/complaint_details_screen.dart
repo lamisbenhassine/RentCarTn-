@@ -12,14 +12,14 @@ import '../../core/utils/responsive.dart';
 import '../../data/models/complaint.dart';
 import '../../l10n/l10n.dart';
 import '../../state/auction_provider.dart';
-import '../../state/auth_provider.dart';
+import '../../state/car_provider.dart';
 import '../../state/complaint_provider.dart';
 import '../../state/reservation_provider.dart';
 import '../../widgets/common.dart';
 import '../../widgets/status_badge.dart';
 import 'complaint_actions.dart';
 import 'complaint_l10n.dart';
-import 'complaint_mail.dart';
+import 'widgets/complaint_car.dart';
 import 'widgets/complaint_photo.dart';
 import 'widgets/rating_stars.dart';
 
@@ -73,149 +73,6 @@ class ComplaintDetailsScreen extends StatelessWidget {
     }
   }
 
-  /// Démo : choix de l'étape suivante selon le statut.
-  Future<void> _simulate(BuildContext context, Complaint c) async {
-    final l = context.l10n;
-    var delayed = false;
-    final choice =
-        await showModalBottomSheet<({bool reject, bool abusive, bool delayed})>(
-          context: context,
-          showDragHandle: true,
-          builder: (sheetContext) => StatefulBuilder(
-            builder: (sheetContext, setSheet) => SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    NoticeBox(
-                      icon: Icons.science_outlined,
-                      message: l.complaintDemoNote,
-                    ),
-                    // Différée : laisse le temps de quitter l'écran pour voir la
-                    // notification et le badge.
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: delayed,
-                      onChanged: (v) => setSheet(() => delayed = v),
-                      title: Text(l.complaintDemoDelayed),
-                      subtitle: Text(
-                        l.complaintDemoDelayedSub,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: context.cs.outline,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    if (c.status == ComplaintStatus.enAttente)
-                      FilledButton.icon(
-                        onPressed: () => Navigator.pop(sheetContext, (
-                          reject: false,
-                          abusive: false,
-                          delayed: delayed,
-                        )),
-                        icon: const Icon(Icons.autorenew_rounded),
-                        label: Text(l.complaintDemoTake),
-                      )
-                    else ...[
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.success,
-                        ),
-                        onPressed: () => Navigator.pop(sheetContext, (
-                          reject: false,
-                          abusive: false,
-                          delayed: delayed,
-                        )),
-                        icon: const Icon(Icons.check_circle_rounded),
-                        label: Text(l.complaintDemoResolve),
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.danger,
-                        ),
-                        onPressed: () => Navigator.pop(sheetContext, (
-                          reject: true,
-                          abusive: false,
-                          delayed: delayed,
-                        )),
-                        icon: const Icon(Icons.cancel_rounded),
-                        label: Text(l.complaintDemoReject),
-                      ),
-                      const SizedBox(height: 6),
-                      // Rejet pour abus : -10 sur le score de confiance du client.
-                      TextButton.icon(
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.danger,
-                        ),
-                        onPressed: () => Navigator.pop(sheetContext, (
-                          reject: true,
-                          abusive: true,
-                          delayed: delayed,
-                        )),
-                        icon: const Icon(Icons.gpp_bad_outlined),
-                        label: Text(l.complaintDemoRejectAbusive),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-    if (choice == null || !context.mounted) return;
-
-    // Références captées : l'écran peut être fermé avant la réponse.
-    final provider = context.read<ComplaintProvider>();
-    final user = context.read<AuthProvider>().user;
-
-    Future<void> respond() async {
-      final status = await provider.simulateAgencyStep(
-        c.id,
-        reject: choice.reject,
-        abusive: choice.abusive,
-      );
-      if (status == null) {
-        if (context.mounted) AppSnack.error(context, l.complaintSaveFailed);
-        return;
-      }
-      if (context.mounted) {
-        AppSnack.success(
-          context,
-          l.complaintDemoDone(l.complaintStatus(status)),
-        );
-      }
-
-      // Résolue / Rejetée : e-mail de suivi (même modèle), sans bloquer.
-      if (!status.isClosed) return;
-      final updated = provider.byId(c.id);
-      if (updated == null) return;
-      final result = await sendComplaintMail(updated, user);
-      if (!context.mounted) return;
-      switch (result) {
-        case ComplaintMailResult.sent:
-          AppSnack.info(
-            context,
-            l.complaintMailStatusSent(maskedComplaintEmail(user)),
-          );
-        case ComplaintMailResult.failed:
-          AppSnack.info(context, l.complaintMailFailed);
-        case ComplaintMailResult.skipped:
-          break;
-      }
-    }
-
-    if (choice.delayed) {
-      AppSnack.info(context, l.complaintDemoScheduled);
-      Future.delayed(const Duration(seconds: 10), respond);
-    } else {
-      await respond();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
@@ -251,13 +108,17 @@ class ComplaintDetailsScreen extends StatelessWidget {
               child: ListView(
                 padding: EdgeInsets.fromLTRB(pad, 16, pad, 32),
                 children: [
-                  _Header(complaint: c),
+                  ComplaintHeader(complaint: c),
                   const SizedBox(height: 14),
-                  _InfoCard(complaint: c, dateTime: _dateTime),
+                  ComplaintInfoCard(complaint: c, dateTime: _dateTime),
                   const SizedBox(height: 14),
-                  _LinkedItem(complaint: c),
+                  if (c.carId != null || c.carLabel != null) ...[
+                    ComplaintCarCard(carId: c.carId, label: c.carLabel),
+                    const SizedBox(height: 14),
+                  ],
+                  ComplaintLinkedItem(complaint: c),
                   const SizedBox(height: 14),
-                  _Section(
+                  ComplaintSection(
                     icon: Icons.notes_rounded,
                     title: l.complaintDescLabel,
                     child: SelectableText(
@@ -271,11 +132,11 @@ class ComplaintDetailsScreen extends StatelessWidget {
                   ),
                   if (c.aiSummary != null || c.aiTone != null) ...[
                     const SizedBox(height: 14),
-                    _AiAnalysis(complaint: c),
+                    ComplaintAiCard(complaint: c),
                   ],
                   if (c.photoPaths.isNotEmpty) ...[
                     const SizedBox(height: 14),
-                    _Section(
+                    ComplaintSection(
                       icon: Icons.photo_library_outlined,
                       title: '${l.complaintPhotos} (${c.photoPaths.length})',
                       child: Wrap(
@@ -300,7 +161,7 @@ class ComplaintDetailsScreen extends StatelessWidget {
                     const SizedBox(height: 14),
                     // Pas de carte intégrée (flutter_map non installé) :
                     // adresse + coordonnées + ouverture dans Maps.
-                    _Section(
+                    ComplaintSection(
                       icon: Icons.place_outlined,
                       title: l.complaintLocation,
                       child: Column(
@@ -337,14 +198,17 @@ class ComplaintDetailsScreen extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 14),
-                  _AgencyResponse(complaint: c),
+                  ComplaintAgencyResponse(complaint: c),
                   // Résolue : note de satisfaction (ou « Merci pour votre avis »).
                   _RatingSection(complaint: c),
                   const SizedBox(height: 14),
-                  _Section(
+                  ComplaintSection(
                     icon: Icons.timeline_rounded,
                     title: l.complaintHistory,
-                    child: _Timeline(events: c.history, dateTime: _dateTime),
+                    child: ComplaintTimeline(
+                      events: c.history,
+                      dateTime: _dateTime,
+                    ),
                   ),
                   if (c.canEdit) ...[
                     const SizedBox(height: 20),
@@ -376,24 +240,6 @@ class ComplaintDetailsScreen extends StatelessWidget {
                       ],
                     ),
                   ],
-                  // Démo : bouton volontairement discret.
-                  if (!c.status.isClosed) ...[
-                    const SizedBox(height: 18),
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: () => _simulate(context, c),
-                        style: TextButton.styleFrom(
-                          foregroundColor: context.cs.outline,
-                          textStyle: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        icon: const Icon(Icons.science_outlined, size: 16),
-                        label: Text(l.complaintDemoSimulate),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -405,8 +251,9 @@ class ComplaintDetailsScreen extends StatelessWidget {
 // Blocs
 // -----------------------------------------------------------------------------
 
-class _Section extends StatelessWidget {
-  const _Section({
+class ComplaintSection extends StatelessWidget {
+  const ComplaintSection({
+    super.key,
     required this.icon,
     required this.title,
     required this.child,
@@ -451,8 +298,8 @@ class _Section extends StatelessWidget {
 }
 
 /// Résumé en une phrase + ton détecté par Gemini à l'envoi.
-class _AiAnalysis extends StatelessWidget {
-  const _AiAnalysis({required this.complaint});
+class ComplaintAiCard extends StatelessWidget {
+  const ComplaintAiCard({super.key, required this.complaint});
 
   final Complaint complaint;
 
@@ -462,7 +309,7 @@ class _AiAnalysis extends StatelessWidget {
     final tone = complaint.aiTone;
     final summary = complaint.aiSummary?.trim() ?? '';
 
-    return _Section(
+    return ComplaintSection(
       icon: Icons.auto_awesome_rounded,
       title: l.aiAnalysisTitle,
       child: Column(
@@ -526,8 +373,8 @@ class _AiAnalysis extends StatelessWidget {
 }
 
 /// Catégorie, référence (copiable), titre, badges.
-class _Header extends StatelessWidget {
-  const _Header({required this.complaint});
+class ComplaintHeader extends StatelessWidget {
+  const ComplaintHeader({super.key, required this.complaint});
 
   final Complaint complaint;
 
@@ -630,8 +477,12 @@ class _Header extends StatelessWidget {
 }
 
 /// Lignes « libellé / valeur ».
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.complaint, required this.dateTime});
+class ComplaintInfoCard extends StatelessWidget {
+  const ComplaintInfoCard({
+    super.key,
+    required this.complaint,
+    required this.dateTime,
+  });
 
   final Complaint complaint;
   final String Function(BuildContext, DateTime) dateTime;
@@ -665,7 +516,7 @@ class _InfoCard extends StatelessWidget {
       ),
     );
 
-    return _Section(
+    return ComplaintSection(
       icon: Icons.info_outline_rounded,
       title: l.complaintDetailsTitle,
       child: Column(
@@ -684,7 +535,6 @@ class _InfoCard extends StatelessWidget {
             ),
           ),
           row(l.complaintFieldStatus, value(l.complaintStatus(c.status))),
-          if (c.carLabel != null) row(l.complaintFieldCar, value(c.carLabel!)),
           if (c.agency != null) row(l.complaintFieldAgency, value(c.agency!)),
           row(l.complaintFieldSent, value(dateTime(context, c.createdAt))),
           if (c.updatedAt != c.createdAt)
@@ -696,8 +546,8 @@ class _InfoCard extends StatelessWidget {
 }
 
 /// Réservation ou enchère liée (cliquable si elle existe encore).
-class _LinkedItem extends StatelessWidget {
-  const _LinkedItem({required this.complaint});
+class ComplaintLinkedItem extends StatelessWidget {
+  const ComplaintLinkedItem({super.key, required this.complaint});
 
   final Complaint complaint;
 
@@ -708,7 +558,7 @@ class _LinkedItem extends StatelessWidget {
 
     if (c.reservationId != null) {
       final r = context.watch<ReservationProvider>().byId(c.reservationId!);
-      return _Section(
+      return ComplaintSection(
         icon: Icons.event_note_rounded,
         title: l.complaintLinkedReservation,
         child: r == null
@@ -718,7 +568,10 @@ class _LinkedItem extends StatelessWidget {
               )
             : _LinkTile(
                 icon: Icons.directions_car_rounded,
-                title: r.car.fullName,
+                // Nom lu dans le catalogue ; voiture retirée → référence.
+                title:
+                    context.watch<CarProvider>().carById(r.car.id)?.fullName ??
+                    r.reference,
                 subtitle:
                     '${r.reference} · ${context.dateLong(r.range.start)} · '
                     '${r.pickupCity}',
@@ -728,7 +581,7 @@ class _LinkedItem extends StatelessWidget {
     }
     if (c.auctionId != null) {
       final a = context.watch<AuctionProvider>().byId(c.auctionId!);
-      return _Section(
+      return ComplaintSection(
         icon: Icons.gavel_rounded,
         title: l.complaintLinkedAuction,
         child: a == null
@@ -789,8 +642,8 @@ class _LinkTile extends StatelessWidget {
 }
 
 /// « Réponse de l'agence », ou message d'attente si elle n'a pas répondu.
-class _AgencyResponse extends StatelessWidget {
-  const _AgencyResponse({required this.complaint});
+class ComplaintAgencyResponse extends StatelessWidget {
+  const ComplaintAgencyResponse({super.key, required this.complaint});
 
   final Complaint complaint;
 
@@ -809,7 +662,7 @@ class _AgencyResponse extends StatelessWidget {
     final color = complaint.status == ComplaintStatus.rejetee
         ? AppColors.danger
         : AppColors.success;
-    return _Section(
+    return ComplaintSection(
       icon: Icons.support_agent_rounded,
       title: l.complaintAgencyResponse,
       color: color,
@@ -826,8 +679,12 @@ class _AgencyResponse extends StatelessWidget {
 }
 
 /// Frise verticale : pastille colorée par statut + trait + texte.
-class _Timeline extends StatelessWidget {
-  const _Timeline({required this.events, required this.dateTime});
+class ComplaintTimeline extends StatelessWidget {
+  const ComplaintTimeline({
+    super.key,
+    required this.events,
+    required this.dateTime,
+  });
 
   final List<ComplaintEvent> events;
   final String Function(BuildContext, DateTime) dateTime;
@@ -901,7 +758,11 @@ class _Timeline extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          dateTime(context, sorted[i].date),
+                          [
+                            dateTime(context, sorted[i].date),
+                            if (sorted[i].by case final by?)
+                              l.complaintEventBy(by),
+                          ].join(' · '),
                           style: TextStyle(
                             fontSize: 12,
                             color: context.cs.outline,
@@ -1027,7 +888,7 @@ class _RatingSectionState extends State<_RatingSection> {
 
   Widget _form(BuildContext context) {
     final l = context.l10n;
-    return _Section(
+    return ComplaintSection(
       icon: Icons.sentiment_satisfied_alt_rounded,
       title: l.ratingTitle,
       color: ratingStarColor,
@@ -1098,7 +959,7 @@ class _RatingSectionState extends State<_RatingSection> {
   Widget _thanks(BuildContext context, Complaint c) {
     final l = context.l10n;
     final rating = c.rating!;
-    return _Section(
+    return ComplaintSection(
       icon: Icons.favorite_rounded,
       title: l.ratingThanks,
       color: AppColors.success,
